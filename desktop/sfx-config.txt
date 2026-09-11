@@ -1,5 +1,4 @@
 ;!@Install@!UTF-8!
-Title="Sparkle"
-Progress="yes"
+Progress="no"
 RunProgram="Sparkle.exe"
 ;!@InstallEnd@!

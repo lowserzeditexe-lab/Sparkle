@@ -15,7 +15,7 @@ OUT="Sparkle.exe"
 
 # (re)crée l'exe non signé si absent
 if [ ! -f "$IN" ]; then
-  printf ';!@Install@!UTF-8!\r\nTitle="Sparkle"\r\nProgress="yes"\r\nRunProgram="Sparkle.exe"\r\n;!@InstallEnd@!\r\n' > sfx-config.txt
+  printf ';!@Install@!UTF-8!\r\nProgress="no"\r\nRunProgram="Sparkle.exe"\r\n;!@InstallEnd@!\r\n' > sfx-config.txt
   cat 7zSD.sfx sfx-config.txt app-archive.7z > "$IN"
 fi
 

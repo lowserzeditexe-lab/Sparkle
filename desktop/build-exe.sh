@@ -13,8 +13,8 @@ cd "$(dirname "$0")"
 rm -f app-archive.7z
 ( cd dist/win-unpacked && 7z a -t7z -mx=5 ../../app-archive.7z ./* >/dev/null )
 
-# 3. Config SFX
-printf ';!@Install@!UTF-8!\r\nTitle="Sparkle"\r\nProgress="yes"\r\nRunProgram="Sparkle.exe"\r\n;!@InstallEnd@!\r\n' > sfx-config.txt
+# 3. Config SFX (silencieux : pas de fenêtre d'extraction, lance direct l'interface)
+printf ';!@Install@!UTF-8!\r\nProgress="no"\r\nRunProgram="Sparkle.exe"\r\n;!@InstallEnd@!\r\n' > sfx-config.txt
 
 # 4. Concaténer -> exe unique (non signé)
 cat 7zSD.sfx sfx-config.txt app-archive.7z > Sparkle_unsigned.exe
