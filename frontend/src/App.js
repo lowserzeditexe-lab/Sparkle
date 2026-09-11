@@ -202,11 +202,11 @@ export default function App() {
                     <p className="subtitle">Ceci est l'aperçu de l'interface Sparkle. Pour installer réellement, lance l'application <b>Sparkle</b> sur Windows.</p>
                     <div className="note">
                       <Info size={15} />
-                      <span>Mode aperçu : un navigateur ne peut pas modifier Discord. Télécharge Sparkle pour Windows et lance-le — tu retrouveras exactement cette interface.</span>
+                      <span>Mode aperçu : un navigateur ne peut pas modifier Discord. Télécharge <b>Sparkle.exe</b> et double-clique dessus — tu retrouveras exactement cette interface, qui installera Vencord et le plugin.</span>
                     </div>
                     <div className="cta">
                       <button className="btn btn-primary" data-testid="download-again-btn" onClick={downloadWindows}>
-                        <Download size={17} /> Télécharger pour Windows
+                        <Download size={17} /> Télécharger Sparkle.exe
                       </button>
                     </div>
                   </>

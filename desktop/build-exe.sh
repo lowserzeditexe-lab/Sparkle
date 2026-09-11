@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Reconstruit l'unique Sparkle.exe (SFX 7-Zip qui lance l'app Electron).
+# Prérequis : le dossier dist/win-unpacked doit exister (voir README),
+#             et 7zSD.sfx présent dans ce dossier, p7zip-full installé.
+set -e
+cd "$(dirname "$0")"
+
+# 1. (re)builder le renderer + réassembler win-unpacked si besoin
+#    yarn build:renderer   # met à jour desktop/build depuis frontend
+#    Puis regarnir dist/win-unpacked/resources/app avec main.js/preload.js/installer.js/build
+
+# 2. Archive 7z de l'app Windows
+rm -f app-archive.7z
+( cd dist/win-unpacked && 7z a -t7z -mx=5 ../../app-archive.7z ./* >/dev/null )
+
+# 3. Config SFX
+printf ';!@Install@!UTF-8!\r\nTitle="Sparkle"\r\nProgress="yes"\r\nRunProgram="Sparkle.exe"\r\n;!@InstallEnd@!\r\n' > sfx-config.txt
+
+# 4. Concaténer -> exe unique
+cat 7zSD.sfx sfx-config.txt app-archive.7z > Sparkle.exe
+
+# 5. Publier
+cp Sparkle.exe ../backend/dist_installers/Sparkle.exe
+ls -la Sparkle.exe
+echo "OK -> backend/dist_installers/Sparkle.exe"

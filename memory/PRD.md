@@ -59,3 +59,14 @@ l'extension et ajoute le plugin par défaut. Doit être testable dans la preview
 - Frontend : App.js détecte window.sparkle (desktop) -> install réel ; sinon mode "aperçu" web.
 - Rebuild renderer : `cd desktop && yarn build:renderer` ; app Windows : réassembler win-unpacked.
 - Limite : pas de .exe installeur signé (wine indispo, hôte aarch64) ; app portable Sparkle.exe OK.
+
+## Sparkle.exe unique (2026-06)
+- Un seul exécutable Windows : /app/backend/dist_installers/Sparkle.exe (~76 Mo, PE valide).
+- Auto-extractible SFX 7-Zip (7zSD.sfx) : au double-clic, extrait l'app dans %TEMP% puis
+  lance Sparkle.exe (Electron) = notre interface, qui installe réellement Vencord+AutoQuest.
+- Build : /app/desktop/build-exe.sh (concatène 7zSD.sfx + sfx-config.txt + app-archive.7z).
+  Source app : /app/desktop/dist/win-unpacked (electron win-x64 + resources/app + resources/payload).
+- Backend GET /api/installer/download -> FileResponse Sparkle.exe.
+- Non signé : SmartScreen peut avertir (Informations complémentaires -> Exécuter quand même).
+- Vérifié : PE MZ, 7z liste 100 fichiers dont Sparkle.exe app + config RunProgram. Exécution
+  Windows réelle non testable dans la preview Linux.

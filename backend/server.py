@@ -104,13 +104,13 @@ async def _record_download(options: dict):
 
 @api_router.get("/installer/download")
 async def download_installer(autoquest: bool = Query(True)):
-    """Serve the Sparkle Windows app (portable). The interface IS the installer."""
+    """Serve the single Sparkle.exe (self-extracting installer = this interface)."""
     await _record_download({"installAutoQuest": bool(autoquest)})
-    pkg = DIST_INSTALLERS / "Sparkle-Windows-x64.zip"
-    if not pkg.exists():
+    exe = DIST_INSTALLERS / "Sparkle.exe"
+    if not exe.exists():
         return {"error": "installer not built"}
-    headers = {"Content-Disposition": 'attachment; filename="Sparkle-Windows-x64.zip"'}
-    return FileResponse(str(pkg), media_type="application/zip", headers=headers)
+    headers = {"Content-Disposition": 'attachment; filename="Sparkle.exe"'}
+    return FileResponse(str(exe), media_type="application/vnd.microsoft.portable-executable", headers=headers)
 
 
 @api_router.get("/stats")
