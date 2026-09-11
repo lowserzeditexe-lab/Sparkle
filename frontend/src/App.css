@@ -25,7 +25,15 @@
   display: flex; align-items: center; justify-content: space-between;
   padding: 30px 4px 0; z-index: 3;
   min-height: 74px;
+  -webkit-app-region: drag;
 }
+.topbar button, .topbar a { -webkit-app-region: no-drag; }
+.win-close {
+  width: 34px; height: 34px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--panel-line); color: var(--muted);
+  cursor: pointer; transition: background-color 0.2s, color 0.2s;
+}
+.win-close:hover { background: rgba(240,72,79,0.9); color: #fff; border-color: transparent; }
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand img { width: 24px; height: 24px; object-fit: contain; filter: drop-shadow(0 0 8px rgba(150,120,255,0.5)); }
 .brand span { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }

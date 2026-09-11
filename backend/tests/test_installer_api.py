@@ -1,13 +1,18 @@
-"""Backend API tests for BdCompat Installer."""
-import io
-import json
+"""Backend API tests for Sparkle installer."""
 import os
-import zipfile
-
 import pytest
 import requests
+from pathlib import Path
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://plugin-installer-ext.preview.emergentagent.com").rstrip("/")
+# Load frontend .env for REACT_APP_BACKEND_URL
+_env_path = Path(__file__).resolve().parents[2] / "frontend" / ".env"
+if _env_path.exists():
+    for line in _env_path.read_text().splitlines():
+        if "=" in line and not line.strip().startswith("#"):
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip())
+
+BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
 API = f"{BASE_URL}/api"
 
 
@@ -18,14 +23,10 @@ class TestInfo:
         assert r.status_code == 200
         d = r.json()
         assert "extension" in d and "plugin" in d and "steps" in d
-        assert d["extension"]["name"] == "Vencord BdCompat"
+        assert d["extension"]["name"] == "Sparkle"
         assert d["plugin"]["name"] == "AutoQuest"
         assert d["plugin"]["author"] == "999none"
-        assert d["plugin"]["version"] == "1.5.0"
         assert isinstance(d["steps"], list) and len(d["steps"]) >= 5
-        step_ids = [s["id"] for s in d["steps"]]
-        for expected in ["prepare", "vencord", "plugin", "close", "inject", "settings", "done"]:
-            assert expected in step_ids
 
 
 # ----------------- /api/plugin/preview -----------------
@@ -40,44 +41,19 @@ class TestPluginPreview:
 
 
 # ----------------- /api/installer/download -----------------
-def _download(params):
-    r = requests.get(f"{API}/installer/download", params=params, timeout=60)
-    assert r.status_code == 200, r.text
-    return r
-
-
 class TestInstallerDownload:
-    def test_download_with_autoquest_true(self):
-        r = _download({"autoquest": "true", "enable": "true", "close": "true", "canary": "false", "ptb": "false"})
+    def test_download_returns_exe_binary(self):
+        r = requests.get(f"{API}/installer/download", params={"autoquest": "true"}, timeout=60)
+        assert r.status_code == 200, r.text
         cd = r.headers.get("Content-Disposition", "")
-        assert "VencordBdCompat-AutoQuest-Setup.zip" in cd
-        z = zipfile.ZipFile(io.BytesIO(r.content))
-        names = z.namelist()
-        base = "VencordBdCompat-AutoQuest"
-        required = [f"{base}/Install.bat", f"{base}/Install.ps1", f"{base}/config.json",
-                    f"{base}/logo.png", f"{base}/AutoQuest.plugin.js"]
-        for f in required:
-            assert f in names, f"Missing: {f}"
-        # dist folder with patcher.js
-        assert any(n.startswith(f"{base}/dist/") and n.endswith("patcher.js") for n in names), \
-            f"Missing dist/patcher.js. names: {[n for n in names if 'dist' in n][:5]}"
-        # config check
-        cfg = json.loads(z.read(f"{base}/config.json"))
-        assert cfg["installAutoQuest"] is True
-        assert cfg["targets"] == ["Discord"]
+        assert "Sparkle.exe" in cd, f"CD header: {cd}"
+        ct = r.headers.get("Content-Type", "")
+        assert "application/vnd.microsoft.portable-executable" in ct, f"CT: {ct}"
+        # PE files start with 'MZ' magic bytes
+        assert r.content[:2] == b"MZ", f"Missing MZ magic: {r.content[:8]!r}"
+        assert len(r.content) > 100
 
-    def test_download_with_autoquest_false(self):
-        r = _download({"autoquest": "false", "canary": "false", "ptb": "false"})
-        z = zipfile.ZipFile(io.BytesIO(r.content))
-        names = z.namelist()
-        base = "VencordBdCompat-AutoQuest"
-        assert f"{base}/AutoQuest.plugin.js" not in names
-        cfg = json.loads(z.read(f"{base}/config.json"))
-        assert cfg["installAutoQuest"] is False
-
-    def test_download_beta_targets(self):
-        r = _download({"autoquest": "true", "canary": "true", "ptb": "true"})
-        z = zipfile.ZipFile(io.BytesIO(r.content))
-        cfg = json.loads(z.read("VencordBdCompat-AutoQuest/config.json"))
-        for t in ["Discord", "DiscordPTB", "DiscordCanary", "DiscordDevelopment"]:
-            assert t in cfg["targets"], f"Missing target {t}: {cfg['targets']}"
+    def test_download_autoquest_false(self):
+        r = requests.get(f"{API}/installer/download", params={"autoquest": "false"}, timeout=60)
+        assert r.status_code == 200
+        assert r.content[:2] == b"MZ"

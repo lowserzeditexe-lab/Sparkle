@@ -14,6 +14,7 @@ function createWindow() {
     width: 960,
     height: 720,
     resizable: false,
+    frame: false,
     autoHideMenuBar: true,
     backgroundColor: "#0b0918",
     title: "Sparkle",

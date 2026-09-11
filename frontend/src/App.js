@@ -3,12 +3,14 @@ import "@/App.css";
 import axios from "axios";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Sparkles, Puzzle, Download, Check, ArrowRight, ArrowLeft, Info, Terminal, Trash2, MonitorCheck,
+  Sparkles, Puzzle, Download, Check, ArrowRight, ArrowLeft, Info, Terminal, Trash2, MonitorCheck, X,
 } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const bridge = typeof window !== "undefined" ? window.sparkle : undefined;
 const isDesktop = !!(bridge && bridge.isDesktop);
+const asset = (p) => `${process.env.PUBLIC_URL || ""}${p}`;
+const LOGO = asset("/brand/logo.png");
 
 const FLAVOR_LABEL = {
   Discord: "Discord",
@@ -135,8 +137,12 @@ export default function App() {
               <ArrowLeft size={16} /> Retour
             </button>
           ) : <span className="back-ph" />}
-          <div className="brand"><img src="/brand/logo.png" alt="" /><span>Sparkle</span></div>
-          <span className="back-ph" />
+          <div className="brand"><img src={LOGO} alt="" /><span>Sparkle</span></div>
+          {isDesktop ? (
+            <button className="win-close" data-testid="win-close-btn" title="Fermer" onClick={() => { try { window.close(); } catch (_) {} }}>
+              <X size={16} />
+            </button>
+          ) : <span className="back-ph" />}
         </div>
 
         <div className="viewport">
@@ -144,7 +150,7 @@ export default function App() {
             {step === "welcome" && (
               <motion.div key="welcome" data-testid="step-welcome" className="slide"
                 custom={dir} variants={variants} initial="enter" animate="center" exit="exit" transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}>
-                <div className="hero-mark"><img src="/brand/logo.png" alt="logo" /></div>
+                <div className="hero-mark"><img src={LOGO} alt="logo" /></div>
                 <div className="kicker">Installeur</div>
                 <h1 className="title display">Sparkle</h1>
                 <p className="subtitle">Installe l'extension Vencord <b>BdCompat</b> dans Discord — avec le plugin <b>{plugin.name}</b> en option. Simple, propre, en quelques secondes.</p>
@@ -192,7 +198,7 @@ export default function App() {
             {(step === "install" || step === "uninstalling") && (
               <motion.div key="progress" data-testid={step === "install" ? "step-install" : "step-uninstalling"} className="slide"
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
-                <div className="hero-mark install-mark"><img src="/brand/logo.png" alt="" /></div>
+                <div className="hero-mark install-mark"><img src={LOGO} alt="" /></div>
                 <h1 className="title sm display">{step === "install" ? "Installation…" : "Désinstallation…"}</h1>
                 <div className="progress-track"><div className="progress-fill" style={{ width: `${progress}%` }} data-testid="install-progress" /></div>
                 <div className="progress-label" data-testid="install-status">{statusText} · {progress}%</div>
