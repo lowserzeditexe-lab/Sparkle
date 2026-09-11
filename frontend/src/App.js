@@ -9,8 +9,11 @@ import {
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
+// Desktop bridge (present when running inside the Sparkle Electron installer)
+const bridge = typeof window !== "undefined" ? window.sparkle : undefined;
+const isDesktop = !!(bridge && bridge.isDesktop);
+
 const FALLBACK_STEPS = [
-  { id: "prepare", label: "Préparation de l'environnement" },
   { id: "vencord", label: "Copie du build Vencord (BdCompat)" },
   { id: "plugin", label: "Ajout du plugin AutoQuest" },
   { id: "close", label: "Fermeture de Discord" },
@@ -25,17 +28,23 @@ export default function App() {
   const [dir, setDir] = useState(1);
   const [plugin, setPlugin] = useState({ name: "AutoQuest", author: "999none", version: "1.5.0", description: "Complète automatiquement les quêtes Discord." });
   const [steps, setSteps] = useState(FALLBACK_STEPS);
-  const [opts, setOpts] = useState({ autoquest: true, enable: true, close: true, beta: false });
+  const [opts, setOpts] = useState({ autoquest: true });
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState("");
-  const [downloaded, setDownloaded] = useState(false);
+  const [result, setResult] = useState(null); // {patched, plugin}
+  const [error, setError] = useState("");
   const anchorRef = useRef(null);
 
   useEffect(() => {
-    axios.get(`${API}/info`).then((r) => {
-      if (r.data?.plugin) setPlugin((p) => ({ ...p, ...r.data.plugin }));
-      if (r.data?.steps?.length) setSteps(r.data.steps.filter((s) => s.id !== "done"));
-    }).catch(() => {});
+    if (isDesktop) {
+      bridge.getInfo?.().then((info) => { if (info?.plugin) setPlugin((p) => ({ ...p, ...info.plugin })); }).catch(() => {});
+      bridge.onProgress?.(({ pct, label }) => { setProgress(pct); if (label) setStatusText(label); });
+    } else {
+      axios.get(`${API}/info`).then((r) => {
+        if (r.data?.plugin) setPlugin((p) => ({ ...p, ...r.data.plugin }));
+        if (r.data?.steps?.length) setSteps(r.data.steps.filter((s) => s.id !== "done" && s.id !== "prepare"));
+      }).catch(() => {});
+    }
   }, []);
 
   const go = (next) => {
@@ -43,32 +52,42 @@ export default function App() {
     setStep(next);
   };
 
-  const downloadUrl = () => {
-    const q = new URLSearchParams({ autoquest: opts.autoquest }).toString();
-    return `${API}/installer/download?${q}`;
-  };
-  const triggerDownload = () => {
-    const a = anchorRef.current;
-    a.href = downloadUrl();
-    a.click();
-    setDownloaded(true);
-  };
-
-  const runPreparation = async () => {
-    go("install");
+  const runInstall = async () => {
+    setError("");
     setProgress(0);
     setStatusText("");
+    go("install");
+
+    if (isDesktop) {
+      try {
+        const res = await bridge.install({ installPlugin: opts.autoquest });
+        setResult(res || { patched: 0 });
+        setProgress(100);
+        await new Promise((r) => setTimeout(r, 350));
+        go("done");
+      } catch (e) {
+        setError(e?.message || String(e));
+        go("done");
+      }
+      return;
+    }
+
+    // Web preview: simulate the installer steps
     const active = opts.autoquest ? steps : steps.filter((s) => s.id !== "plugin");
     for (let i = 0; i < active.length; i++) {
       setStatusText(active[i].label);
       await new Promise((r) => setTimeout(r, 560));
       setProgress(Math.round(((i + 1) / active.length) * 100));
     }
-    setStatusText("Génération du paquet…");
-    await new Promise((r) => setTimeout(r, 450));
-    triggerDownload();
-    await new Promise((r) => setTimeout(r, 450));
+    setResult({ patched: 0, preview: true });
+    await new Promise((r) => setTimeout(r, 300));
     go("done");
+  };
+
+  const downloadWindows = () => {
+    const a = anchorRef.current;
+    a.href = `${API}/installer/download?autoquest=${opts.autoquest}`;
+    a.click();
   };
 
   const variants = {
@@ -85,29 +104,25 @@ export default function App() {
       <div className="stage">
         <div className="glow-top" />
 
-        {/* top bar */}
         <div className="topbar">
           {showBack ? (
             <button className="back-btn" data-testid="back-btn" onClick={() => go("welcome")}>
               <ArrowLeft size={16} /> Retour
             </button>
           ) : <span className="back-ph" />}
-
-          <div className="brand"><img src="/brand/logo.png" alt="" /><span>Spark</span></div>
-
+          <div className="brand"><img src="/brand/logo.png" alt="" /><span>Sparkle</span></div>
           <span className="back-ph" />
         </div>
 
-        {/* slides */}
         <div className="viewport">
           <AnimatePresence mode="wait" custom={dir}>
             {step === "welcome" && (
               <motion.div key="welcome" data-testid="step-welcome" className="slide"
                 custom={dir} variants={variants} initial="enter" animate="center" exit="exit" transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}>
                 <div className="hero-mark"><img src="/brand/logo.png" alt="logo" /></div>
-                <div className="kicker">Installeur Spark</div>
-                <h1 className="title display">Spark</h1>
-                <p className="subtitle">Installe l'extension Vencord <b>BdCompat</b> dans Discord — avec le plugin <b>{plugin.name}</b> en option. Un vrai installeur Windows, prêt en un clic.</p>
+                <div className="kicker">Installeur</div>
+                <h1 className="title display">Sparkle</h1>
+                <p className="subtitle">Installe l'extension Vencord <b>BdCompat</b> dans Discord — avec le plugin <b>{plugin.name}</b> en option. Simple, propre, en quelques secondes.</p>
                 <div className="cta">
                   <button className="btn btn-primary" data-testid="welcome-start-btn" onClick={() => go("plugin")}>
                     Commencer <ArrowRight size={17} />
@@ -124,14 +139,14 @@ export default function App() {
                 <p className="subtitle">{plugin.description?.slice(0, 110)}{plugin.description?.length > 110 ? "…" : ""}</p>
 
                 <div className="choices">
-                  <div className={`choice ${opts.autoquest ? "sel" : ""}`} data-testid="choice-plugin-yes" onClick={() => setOpts((o) => ({ ...o, autoquest: true }))}>
+                  <div className={`choice ${opts.autoquest ? "sel" : ""}`} data-testid="choice-plugin-yes" onClick={() => setOpts({ autoquest: true })}>
                     <div className="c-check"><Check size={13} strokeWidth={3} /></div>
                     <div className="c-icn"><Sparkles size={22} /></div>
                     <span className="pill-rec">Recommandé</span>
                     <div className="c-t">Oui, installer {plugin.name}</div>
                     <div className="c-d">Le plugin est ajouté et activé par défaut au démarrage.</div>
                   </div>
-                  <div className={`choice ${!opts.autoquest ? "sel" : ""}`} data-testid="choice-plugin-no" onClick={() => setOpts((o) => ({ ...o, autoquest: false }))}>
+                  <div className={`choice ${!opts.autoquest ? "sel" : ""}`} data-testid="choice-plugin-no" onClick={() => setOpts({ autoquest: false })}>
                     <div className="c-check"><Check size={13} strokeWidth={3} /></div>
                     <div className="c-icn"><Puzzle size={22} /></div>
                     <div className="c-t" style={{ marginTop: 28 }}>Non, seulement BdCompat</div>
@@ -140,7 +155,7 @@ export default function App() {
                 </div>
 
                 <div className="cta">
-                  <button className="btn btn-primary" data-testid="prepare-start-btn" onClick={runPreparation}>
+                  <button className="btn btn-primary" data-testid="prepare-start-btn" onClick={runInstall}>
                     Installer <ArrowRight size={17} />
                   </button>
                 </div>
@@ -151,7 +166,7 @@ export default function App() {
               <motion.div key="install" data-testid="step-install" className="slide"
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
                 <div className="hero-mark install-mark"><img src="/brand/logo.png" alt="installation" /></div>
-                <h1 className="title sm display">Téléchargement de Spark…</h1>
+                <h1 className="title sm display">Installation…</h1>
                 <div className="progress-track"><div className="progress-fill" style={{ width: `${progress}%` }} data-testid="install-progress" /></div>
                 <div className="progress-label" data-testid="install-status">{statusText} · {progress}%</div>
               </motion.div>
@@ -160,29 +175,44 @@ export default function App() {
             {step === "done" && (
               <motion.div key="done" data-testid="step-done" className="slide"
                 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>
-                <motion.div className="done-check" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 260, damping: 16 }}>
-                  <Check size={38} strokeWidth={3} />
+                <motion.div className={`done-check ${error ? "err" : ""}`} initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 260, damping: 16 }}>
+                  {error ? <Info size={36} /> : <Check size={38} strokeWidth={3} />}
                 </motion.div>
-                <h1 className="title sm display">Spark est prêt</h1>
-                <p className="subtitle">L'installeur <b>{opts.autoquest ? "Spark-Setup.exe" : "Spark-Setup-Lite.exe"}</b> a été téléchargé. Lance-le sur ton PC Windows pour terminer.</p>
 
-                <div className="steps-mini">
-                  <div className="mini"><span className="m-n">1</span><div><div className="m-t">Lance <code>{opts.autoquest ? "Spark-Setup.exe" : "Spark-Setup-Lite.exe"}</code></div><div className="m-d">Double-clic ouvre l'installeur Spark.</div></div></div>
-                  <div className="mini"><span className="m-n">2</span><div><div className="m-t">Suis l'assistant → « Installer »</div><div className="m-d">{opts.autoquest ? `Vencord injecté et ${plugin.name} activé.` : "Vencord BdCompat est injecté."}</div></div></div>
-                  <div className="mini"><span className="m-n">3</span><div><div className="m-t">Relance Discord</div></div></div>
-                </div>
+                {error ? (
+                  <>
+                    <h1 className="title sm display">Échec de l'installation</h1>
+                    <p className="subtitle">{error}</p>
+                  </>
+                ) : isDesktop ? (
+                  <>
+                    <h1 className="title sm display">Sparkle est installé</h1>
+                    <p className="subtitle">
+                      Vencord BdCompat {opts.autoquest ? `et le plugin ${plugin.name} sont` : "est"} installé{opts.autoquest ? "s" : ""} et activé{opts.autoquest ? "s" : ""}.
+                      {result?.patched ? ` ${result.patched} installation${result.patched > 1 ? "s" : ""} Discord patchée${result.patched > 1 ? "s" : ""}.` : ""}
+                    </p>
+                    <div className="steps-mini">
+                      <div className="mini"><span className="m-n">1</span><div><div className="m-t">Relance Discord</div><div className="m-d">Ferme-le complètement puis rouvre-le.</div></div></div>
+                      <div className="mini"><span className="m-n">2</span><div><div className="m-t">Ouvre les réglages Vencord</div><div className="m-d">{opts.autoquest ? `BdCompat + ${plugin.name} sont déjà actifs.` : "BdCompat est déjà actif."}</div></div></div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h1 className="title sm display">Aperçu terminé</h1>
+                    <p className="subtitle">Ceci est l'aperçu de l'interface Sparkle. Pour installer réellement, lance l'application <b>Sparkle</b> sur Windows.</p>
+                    <div className="note">
+                      <Info size={15} />
+                      <span>Mode aperçu : un navigateur ne peut pas modifier Discord. Télécharge Sparkle pour Windows et lance-le — tu retrouveras exactement cette interface.</span>
+                    </div>
+                    <div className="cta">
+                      <button className="btn btn-primary" data-testid="download-again-btn" onClick={downloadWindows}>
+                        <Download size={17} /> Télécharger pour Windows
+                      </button>
+                    </div>
+                  </>
+                )}
 
-                <div className="note">
-                  <Info size={15} />
-                  <span>Discord doit être fermé pendant l'installation. Si Windows SmartScreen s'affiche : clique sur « Informations complémentaires » → « Exécuter quand même ».</span>
-                </div>
-
-                <div className="cta">
-                  <button className="btn btn-primary" data-testid="download-again-btn" onClick={triggerDownload}>
-                    <Download size={17} /> {downloaded ? "Retélécharger" : "Télécharger"}
-                  </button>
-                </div>
-                <button className="link-btn" data-testid="restart-btn" onClick={() => { setDownloaded(false); go("welcome"); }}>
+                <button className="link-btn" data-testid="restart-btn" onClick={() => { setError(""); setResult(null); go("welcome"); }}>
                   Recommencer
                 </button>
               </motion.div>
@@ -190,7 +220,7 @@ export default function App() {
           </AnimatePresence>
         </div>
 
-        <div className="foot"><Terminal size={13} /> Spark · extension Vencord BdCompat · plugin {plugin.name} par {plugin.author}</div>
+        <div className="foot"><Terminal size={13} /> Sparkle · extension Vencord BdCompat · plugin {plugin.name} par {plugin.author}</div>
       </div>
     </div>
   );

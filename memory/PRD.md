@@ -43,3 +43,19 @@ l'extension et ajoute le plugin par défaut. Doit être testable dans la preview
   exécute patch.ps1 (injection Discord + settings.json), écrit un désinstalleur + entrée Add/Remove.
 - Rebuild : `bash backend/build/build.sh` (nécessite nsis + imagemagick).
 - Non signé -> SmartScreen possible (indiqué dans l'UI). Patch non testable en preview Linux.
+
+## Renommage "Sparkle" + interface = installeur (2026-06)
+- Rebrand Spark -> Sparkle (frontend, backend, app desktop).
+- L'INTERFACE EST L'INSTALLEUR : app Electron dans /app/desktop
+  * renderer = build React de /app/frontend (PUBLIC_URL=. yarn build -> desktop/build)
+  * main.js + preload.js : IPC sparkle:getInfo / sparkle:install / sparkle:uninstall
+  * installer.js : patch Discord réel en Node (rename app.asar, dossier app/, settings.json
+    avec plugins.BdCompat.enabled + enabledBdPlugins=["AutoQuest.plugin.js"])
+  * payload embarqué : desktop/resources/payload (dist sans .map + AutoQuest.plugin.js)
+- Build Windows sans wine (electron-builder exige wine -> contourné) :
+  * télécharge electron-vXX-win32-x64.zip, greffe resources/app + resources/payload,
+    renomme electron.exe -> Sparkle.exe => /app/desktop/dist/win-unpacked/
+  * zip -> /app/backend/dist_installers/Sparkle-Windows-x64.zip (servi par /api/installer/download)
+- Frontend : App.js détecte window.sparkle (desktop) -> install réel ; sinon mode "aperçu" web.
+- Rebuild renderer : `cd desktop && yarn build:renderer` ; app Windows : réassembler win-unpacked.
+- Limite : pas de .exe installeur signé (wine indispo, hôte aarch64) ; app portable Sparkle.exe OK.

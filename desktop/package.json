@@ -1,0 +1,38 @@
+{
+  "name": "sparkle-installer",
+  "version": "1.0.0",
+  "description": "Sparkle — installeur de l'extension Vencord BdCompat + plugin AutoQuest",
+  "author": "Sparkle",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "SPARKLE_DEV_URL=http://localhost:3000 electron .",
+    "build:renderer": "cd ../frontend && PUBLIC_URL=. yarn build && rm -rf ../desktop/build && cp -r build ../desktop/build",
+    "dist": "yarn build:renderer && electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "31.7.7",
+    "electron-builder": "24.13.3"
+  },
+  "build": {
+    "appId": "com.sparkle.installer",
+    "productName": "Sparkle",
+    "directories": { "output": "dist" },
+    "files": [
+      "main.js",
+      "preload.js",
+      "installer.js",
+      "build/**/*"
+    ],
+    "extraResources": [
+      { "from": "resources/payload", "to": "payload" }
+    ],
+    "win": {
+      "target": ["portable"],
+      "icon": "icon.ico"
+    },
+    "portable": {
+      "artifactName": "Sparkle-Setup.exe"
+    }
+  }
+}

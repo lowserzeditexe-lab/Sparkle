@@ -83,3 +83,8 @@ android-sdk/
 
 # overlay black-box crash/user-report dumps — session data, never history
 **/.emergent/recordings/
+desktop/node_modules/electron/dist/electron
+desktop/dist/Sparkle-Windows-x64.zip
+desktop/dist/win-arm64-unpacked/Sparkle.exe
+desktop/dist/win-unpacked/Sparkle.exe
+backend/dist_installers/Sparkle-Windows-x64.zip

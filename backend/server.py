@@ -21,7 +21,7 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-app = FastAPI(title="Spark Installer API")
+app = FastAPI(title="Sparkle Installer API")
 api_router = APIRouter(prefix="/api")
 
 
@@ -41,7 +41,7 @@ def parse_plugin_meta():
 
 
 EXTENSION_INFO = {
-    "name": "Spark",
+    "name": "Sparkle",
     "description": "Installeur de l'extension Vencord BdCompat avec le plugin AutoQuest.",
     "version": "1.0.0",
 }
@@ -103,23 +103,14 @@ async def _record_download(options: dict):
 
 
 @api_router.get("/installer/download")
-async def download_installer(
-    autoquest: bool = Query(True),
-):
-    """Serve the real Windows Spark installer (.exe). Variant depends on plugin choice."""
+async def download_installer(autoquest: bool = Query(True)):
+    """Serve the Sparkle Windows app (portable). The interface IS the installer."""
     await _record_download({"installAutoQuest": bool(autoquest)})
-    if autoquest:
-        exe = DIST_INSTALLERS / "Spark-Setup.exe"
-        filename = "Spark-Setup.exe"
-    else:
-        exe = DIST_INSTALLERS / "Spark-Setup-Lite.exe"
-        filename = "Spark-Setup-Lite.exe"
-
-    if not exe.exists():
+    pkg = DIST_INSTALLERS / "Sparkle-Windows-x64.zip"
+    if not pkg.exists():
         return {"error": "installer not built"}
-
-    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
-    return FileResponse(str(exe), media_type="application/vnd.microsoft.portable-executable", headers=headers)
+    headers = {"Content-Disposition": 'attachment; filename="Sparkle-Windows-x64.zip"'}
+    return FileResponse(str(pkg), media_type="application/zip", headers=headers)
 
 
 @api_router.get("/stats")
