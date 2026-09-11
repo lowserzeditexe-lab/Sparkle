@@ -44,10 +44,7 @@ export default function App() {
   };
 
   const downloadUrl = () => {
-    const q = new URLSearchParams({
-      autoquest: opts.autoquest, enable: opts.enable, close: opts.close,
-      canary: opts.beta, ptb: opts.beta,
-    }).toString();
+    const q = new URLSearchParams({ autoquest: opts.autoquest }).toString();
     return `${API}/installer/download?${q}`;
   };
   const triggerDownload = () => {
@@ -96,7 +93,7 @@ export default function App() {
             </button>
           ) : <span className="back-ph" />}
 
-          <div className="brand"><img src="/brand/logo.png" alt="" /><span>BdCompat</span></div>
+          <div className="brand"><img src="/brand/logo.png" alt="" /><span>Spark</span></div>
 
           <span className="back-ph" />
         </div>
@@ -108,9 +105,9 @@ export default function App() {
               <motion.div key="welcome" data-testid="step-welcome" className="slide"
                 custom={dir} variants={variants} initial="enter" animate="center" exit="exit" transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}>
                 <div className="hero-mark"><img src="/brand/logo.png" alt="logo" /></div>
-                <div className="kicker">Installeur d'extension</div>
-                <h1 className="title display">BdCompat pour Discord</h1>
-                <p className="subtitle">Installe l'extension Vencord <b>BdCompat</b> — avec le plugin <b>{plugin.name}</b> en option. C'est parti.</p>
+                <div className="kicker">Installeur Spark</div>
+                <h1 className="title display">Spark</h1>
+                <p className="subtitle">Installe l'extension Vencord <b>BdCompat</b> dans Discord — avec le plugin <b>{plugin.name}</b> en option. Un vrai installeur Windows, prêt en un clic.</p>
                 <div className="cta">
                   <button className="btn btn-primary" data-testid="welcome-start-btn" onClick={() => go("plugin")}>
                     Commencer <ArrowRight size={17} />
@@ -154,7 +151,7 @@ export default function App() {
               <motion.div key="install" data-testid="step-install" className="slide"
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
                 <div className="hero-mark install-mark"><img src="/brand/logo.png" alt="installation" /></div>
-                <h1 className="title sm display">Préparation…</h1>
+                <h1 className="title sm display">Téléchargement de Spark…</h1>
                 <div className="progress-track"><div className="progress-fill" style={{ width: `${progress}%` }} data-testid="install-progress" /></div>
                 <div className="progress-label" data-testid="install-status">{statusText} · {progress}%</div>
               </motion.div>
@@ -166,19 +163,18 @@ export default function App() {
                 <motion.div className="done-check" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 260, damping: 16 }}>
                   <Check size={38} strokeWidth={3} />
                 </motion.div>
-                <h1 className="title sm display">Ton installeur est prêt</h1>
-                <p className="subtitle">Le paquet <b>VencordBdCompat-AutoQuest-Setup.zip</b> a été téléchargé. Lance-le sur ton PC Windows pour terminer.</p>
+                <h1 className="title sm display">Spark est prêt</h1>
+                <p className="subtitle">L'installeur <b>{opts.autoquest ? "Spark-Setup.exe" : "Spark-Setup-Lite.exe"}</b> a été téléchargé. Lance-le sur ton PC Windows pour terminer.</p>
 
                 <div className="steps-mini">
-                  <div className="mini"><span className="m-n">1</span><div><div className="m-t">Décompresse le <code>.zip</code></div></div></div>
-                  <div className="mini"><span className="m-n">2</span><div><div className="m-t">Lance <code>Install.bat</code></div><div className="m-d">Ouvre l'installeur graphique Windows.</div></div></div>
-                  <div className="mini"><span className="m-n">3</span><div><div className="m-t">Clique sur « Installer »</div><div className="m-d">{opts.autoquest ? `Vencord injecté et ${plugin.name} ajouté.` : "Vencord BdCompat est injecté."}</div></div></div>
-                  <div className="mini"><span className="m-n">4</span><div><div className="m-t">Relance Discord</div></div></div>
+                  <div className="mini"><span className="m-n">1</span><div><div className="m-t">Lance <code>{opts.autoquest ? "Spark-Setup.exe" : "Spark-Setup-Lite.exe"}</code></div><div className="m-d">Double-clic ouvre l'installeur Spark.</div></div></div>
+                  <div className="mini"><span className="m-n">2</span><div><div className="m-t">Suis l'assistant → « Installer »</div><div className="m-d">{opts.autoquest ? `Vencord injecté et ${plugin.name} activé.` : "Vencord BdCompat est injecté."}</div></div></div>
+                  <div className="mini"><span className="m-n">3</span><div><div className="m-t">Relance Discord</div></div></div>
                 </div>
 
                 <div className="note">
                   <Info size={15} />
-                  <span>Le patch de Discord se fait sur ton PC Windows via le <code>.zip</code>. Si Windows bloque : clic droit sur <code>Install.bat</code> → Exécuter en tant qu'administrateur.</span>
+                  <span>Discord doit être fermé pendant l'installation. Si Windows SmartScreen s'affiche : clique sur « Informations complémentaires » → « Exécuter quand même ».</span>
                 </div>
 
                 <div className="cta">
@@ -194,7 +190,7 @@ export default function App() {
           </AnimatePresence>
         </div>
 
-        <div className="foot"><Terminal size={13} /> Extension Vencord · plugin {plugin.name} par {plugin.author}</div>
+        <div className="foot"><Terminal size={13} /> Spark · extension Vencord BdCompat · plugin {plugin.name} par {plugin.author}</div>
       </div>
     </div>
   );

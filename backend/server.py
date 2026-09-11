@@ -1,13 +1,10 @@
 from fastapi import FastAPI, APIRouter, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
-import io
-import json
 import re
-import zipfile
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
@@ -18,14 +15,13 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 PAYLOAD_DIR = ROOT_DIR / "payload"
-INSTALLER_DIR = ROOT_DIR / "installer_assets"
-BRAND_LOGO = PAYLOAD_DIR.parent.parent / "frontend" / "public" / "brand" / "logo.png"
+DIST_INSTALLERS = ROOT_DIR / "dist_installers"
 
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-app = FastAPI(title="BdCompat Installer API")
+app = FastAPI(title="Spark Installer API")
 api_router = APIRouter(prefix="/api")
 
 
@@ -45,8 +41,8 @@ def parse_plugin_meta():
 
 
 EXTENSION_INFO = {
-    "name": "Vencord BdCompat",
-    "description": "Extension Vencord qui apporte la compatibilite des plugins BetterDiscord.",
+    "name": "Spark",
+    "description": "Installeur de l'extension Vencord BdCompat avec le plugin AutoQuest.",
     "version": "1.0.0",
 }
 
@@ -109,50 +105,21 @@ async def _record_download(options: dict):
 @api_router.get("/installer/download")
 async def download_installer(
     autoquest: bool = Query(True),
-    enable: bool = Query(True),
-    close: bool = Query(True),
-    canary: bool = Query(True),
-    ptb: bool = Query(True),
 ):
-    targets = ["Discord"]
-    if ptb:
-        targets.append("DiscordPTB")
-    if canary:
-        targets.append("DiscordCanary")
-        targets.append("DiscordDevelopment")
+    """Serve the real Windows Spark installer (.exe). Variant depends on plugin choice."""
+    await _record_download({"installAutoQuest": bool(autoquest)})
+    if autoquest:
+        exe = DIST_INSTALLERS / "Spark-Setup.exe"
+        filename = "Spark-Setup.exe"
+    else:
+        exe = DIST_INSTALLERS / "Spark-Setup-Lite.exe"
+        filename = "Spark-Setup-Lite.exe"
 
-    config = {
-        "installAutoQuest": bool(autoquest),
-        "enableByDefault": bool(enable),
-        "closeDiscord": bool(close),
-        "targets": targets,
-    }
-    await _record_download(config)
+    if not exe.exists():
+        return {"error": "installer not built"}
 
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        base = "VencordBdCompat-AutoQuest"
-        # scripts
-        z.write(INSTALLER_DIR / "Install.bat", f"{base}/Install.bat")
-        z.write(INSTALLER_DIR / "Install.ps1", f"{base}/Install.ps1")
-        z.write(INSTALLER_DIR / "README.txt", f"{base}/README.txt")
-        # config
-        z.writestr(f"{base}/config.json", json.dumps(config, indent=2))
-        # logo for the GUI
-        if BRAND_LOGO.exists():
-            z.write(BRAND_LOGO, f"{base}/logo.png")
-        # plugin
-        if autoquest:
-            z.write(PAYLOAD_DIR / "AutoQuest.plugin.js", f"{base}/AutoQuest.plugin.js")
-        # vencord dist
-        dist = PAYLOAD_DIR / "Vencord" / "dist"
-        for p in dist.rglob("*"):
-            if p.is_file():
-                z.write(p, f"{base}/dist/{p.relative_to(dist).as_posix()}")
-
-    buf.seek(0)
-    headers = {"Content-Disposition": f'attachment; filename="{base}-Setup.zip"'}
-    return StreamingResponse(buf, media_type="application/zip", headers=headers)
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return FileResponse(str(exe), media_type="application/vnd.microsoft.portable-executable", headers=headers)
 
 
 @api_router.get("/stats")

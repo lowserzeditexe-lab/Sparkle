@@ -31,3 +31,15 @@ l'extension et ajoute le plugin par défaut. Doit être testable dans la preview
 ## Notes
 - Le patch réel de Discord ne peut PAS s'exécuter dans la preview Linux ; seul le flux web +
   l'assemblage du paquet sont testés. Le .zip effectue l'installation sur le PC Windows.
+
+## Version réelle "Spark" (2026-06)
+- Rebrand complet en Spark (frontend + backend + branding installeur).
+- VRAIS installeurs Windows .exe générés via NSIS (compilé sous Linux) :
+  * backend/dist_installers/Spark-Setup.exe (avec plugin AutoQuest)
+  * backend/dist_installers/Spark-Setup-Lite.exe (BdCompat seul)
+- Sources build : backend/build/spark.nsi, patch.ps1, unpatch.ps1, build.sh, spark.ico
+- Backend GET /api/installer/download?autoquest=true|false -> FileResponse de l'.exe adéquat.
+- L'exe (MUI2 : Welcome/Install/Finish) copie dist -> %APPDATA%\Vencord\dist, dépose le plugin,
+  exécute patch.ps1 (injection Discord + settings.json), écrit un désinstalleur + entrée Add/Remove.
+- Rebuild : `bash backend/build/build.sh` (nécessite nsis + imagemagick).
+- Non signé -> SmartScreen possible (indiqué dans l'UI). Patch non testable en preview Linux.
