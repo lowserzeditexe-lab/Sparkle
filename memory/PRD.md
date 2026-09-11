@@ -70,3 +70,17 @@ l'extension et ajoute le plugin par défaut. Doit être testable dans la preview
 - Non signé : SmartScreen peut avertir (Informations complémentaires -> Exécuter quand même).
 - Vérifié : PE MZ, 7z liste 100 fichiers dont Sparkle.exe app + config RunProgram. Exécution
   Windows réelle non testable dans la preview Linux.
+
+## 4 features (signature, icône, désinstallation, détection) — 2026-06
+- SIGNATURE : Sparkle.exe signé (osslsigncode, SHA256 + horodatage RFC3161 DigiCert).
+  * Cert auto-signé de démo (desktop/signing/sparkle.pfx) -> signature VALIDE mais NON approuvée
+    par Windows => SmartScreen avertit toujours. Pour l'enlever : vrai cert OV/EV via
+    `./desktop/sign.sh moncert.pfx motdepasse`. SFX reste fonctionnel après signature (vérifié).
+- ICÔNE : icône fenêtre/taskbar Windows = icon.ico (BrowserWindow, embarqué dans resources/app).
+  * L'icône du FICHIER .exe n'est pas ré-embarquée (nécessite rcedit/wine, indispo sur aarch64) ->
+    à faire via build Windows ou wine+rcedit.
+- DÉSINSTALLATION : écran "Désinstaller Sparkle ?" -> installer.uninstall() restaure app.asar de
+  Discord et supprime %APPDATA%/Vencord. Accès via lien sur l'accueil. Aperçu simulé sur le web.
+- DÉTECTION : installer.detect() liste les installs Discord (flavor + version + patché) ; affichée
+  sur l'accueil et l'écran de désinstallation (desktop). IPC sparkle:detect.
+- Rebuild : desktop/build-exe.sh (recompile renderer -> archive -> exe -> signe si pfx présent).

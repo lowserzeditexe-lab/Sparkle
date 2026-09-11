@@ -36,6 +36,8 @@ app.whenReady().then(() => {
     plugin: installer.readPluginMeta(payloadDir()),
   }));
 
+  ipcMain.handle("sparkle:detect", () => installer.detect());
+
   ipcMain.handle("sparkle:install", async (event, opts) => {
     const send = (d) => { if (win && !win.isDestroyed()) win.webContents.send("sparkle:progress", d); };
     return installer.install(opts || {}, payloadDir(), send);

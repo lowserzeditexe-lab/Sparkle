@@ -16,10 +16,15 @@ rm -f app-archive.7z
 # 3. Config SFX
 printf ';!@Install@!UTF-8!\r\nTitle="Sparkle"\r\nProgress="yes"\r\nRunProgram="Sparkle.exe"\r\n;!@InstallEnd@!\r\n' > sfx-config.txt
 
-# 4. Concaténer -> exe unique
-cat 7zSD.sfx sfx-config.txt app-archive.7z > Sparkle.exe
+# 4. Concaténer -> exe unique (non signé)
+cat 7zSD.sfx sfx-config.txt app-archive.7z > Sparkle_unsigned.exe
 
-# 5. Publier
-cp Sparkle.exe ../backend/dist_installers/Sparkle.exe
+# 5. Signer (auto-signé par défaut ; passe ton .pfx en argument pour un vrai cert)
+if [ -f signing/sparkle.pfx ]; then
+  ./sign.sh
+else
+  cp Sparkle_unsigned.exe Sparkle.exe
+  cp Sparkle.exe ../backend/dist_installers/Sparkle.exe
+fi
 ls -la Sparkle.exe
 echo "OK -> backend/dist_installers/Sparkle.exe"

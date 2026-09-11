@@ -129,6 +129,7 @@ async function install({ installPlugin }, payloadDir, onProgress) {
 
 function uninstall() {
   closeDiscord();
+  let restored = 0;
   for (const flavor of FLAVORS) {
     const base = path.join(process.env.LOCALAPPDATA, flavor);
     if (!fs.existsSync(base)) continue;
@@ -138,16 +139,18 @@ function uninstall() {
       const appFolder = path.join(resources, "app");
       const backup = path.join(resources, "_app.asar");
       const asar = path.join(resources, "app.asar");
-      if (fs.existsSync(appFolder)) fs.rmSync(appFolder, { recursive: true, force: true });
-      if (fs.existsSync(backup) && !fs.existsSync(asar)) fs.renameSync(backup, asar);
+      let did = false;
+      if (fs.existsSync(appFolder)) { fs.rmSync(appFolder, { recursive: true, force: true }); did = true; }
+      if (fs.existsSync(backup) && !fs.existsSync(asar)) { fs.renameSync(backup, asar); did = true; }
       const unpackedBak = path.join(resources, "_app.asar.unpacked");
       const unpacked = path.join(resources, "app.asar.unpacked");
       if (fs.existsSync(unpackedBak) && !fs.existsSync(unpacked)) fs.renameSync(unpackedBak, unpacked);
+      if (did) restored++;
     }
   }
   const vdir = vencordDir();
   if (fs.existsSync(vdir)) fs.rmSync(vdir, { recursive: true, force: true });
-  return { ok: true };
+  return { ok: true, restored };
 }
 
 function readPluginMeta(payloadDir) {
@@ -162,4 +165,25 @@ function readPluginMeta(payloadDir) {
   return meta;
 }
 
-module.exports = { install, uninstall, readPluginMeta };
+function detect() {
+  const out = [];
+  const localAppData = process.env.LOCALAPPDATA;
+  if (!localAppData) return out;
+  for (const flavor of FLAVORS) {
+    const base = path.join(localAppData, flavor);
+    if (!fs.existsSync(base)) continue;
+    const appDirs = fs.readdirSync(base, { withFileTypes: true })
+      .filter((e) => e.isDirectory() && e.name.startsWith("app-"));
+    if (!appDirs.length) continue;
+    const versions = appDirs.map((d) => d.name.replace(/^app-/, "")).sort();
+    const latest = versions[versions.length - 1];
+    let patched = false;
+    for (const d of appDirs) {
+      if (fs.existsSync(path.join(base, d.name, "resources", "_app.asar"))) patched = true;
+    }
+    out.push({ flavor, version: latest, patched });
+  }
+  return out;
+}
+
+module.exports = { install, uninstall, detect, readPluginMeta };

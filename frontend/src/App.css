@@ -160,6 +160,27 @@
   background: rgba(108,232,163,0.12); border: 1px solid rgba(108,232,163,0.35); color: var(--ok);
 }
 .done-check.err { background: rgba(255,120,120,0.12); border-color: rgba(255,120,120,0.4); color: #ff8a8a; }
+.done-check.danger { background: rgba(255,120,120,0.1); border-color: rgba(255,120,120,0.35); color: #ff9a9a; }
+
+/* detected Discord installs */
+.detect { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 26px; }
+.detect-empty { color: var(--muted); font-size: 13px; padding: 9px 15px; border-radius: 999px;
+  background: rgba(255,255,255,0.03); border: 1px dashed var(--panel-line); }
+.dchip { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text);
+  padding: 8px 14px; border-radius: 999px; background: rgba(255,255,255,0.04); border: 1px solid var(--panel-line); }
+.dchip svg { color: #9d8cff; }
+.dchip b { font-weight: 700; }
+.dchip .dp { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ok);
+  background: rgba(108,232,163,0.14); padding: 2px 7px; border-radius: 6px; font-weight: 700; }
+
+/* danger button */
+.btn-danger { background: linear-gradient(180deg, #f0484f, #d3313a); color: #fff; box-shadow: 0 10px 30px -10px rgba(240,72,79,0.5); }
+.btn-danger:hover { transform: translateY(-2px); }
+
+.danger-link { color: #d88; }
+.danger-link:hover { color: #ff9a9a; }
+.link-btn { display: inline-flex; align-items: center; gap: 6px; }
+
 .steps-mini { margin: 34px auto 0; max-width: 420px; text-align: left; }
 .mini { display: flex; gap: 14px; align-items: flex-start; padding: 13px 0; border-top: 1px solid var(--panel-line); }
 .mini:first-child { border-top: none; }
