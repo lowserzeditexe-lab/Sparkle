@@ -1,6 +1,1 @@
 cron=3.0pl1-162
-imagemagick=8:6.9.11.60+dfsg-1.6+deb12u13
-nsis=3.08-3+deb12u1
-osslsigncode=2.5-4
-p7zip-full=16.02+really26.02+dfsg-0+deb12u1
-xauth=1:1.1.2-1
