@@ -141,3 +141,22 @@ l'extension et ajoute le plugin par défaut. Doit être testable dans la preview
   885=landing), aucune collision (.btn/.kicker). publicPath "./" OK sous file://.
 - Textes de l'assistant alignés sur BDVencord. Sparkle.exe recompilé/signé/publié (78,9 Mo).
 - Testé (agent frontend): assistant stylé + flux install/uninstall OK; landing sans régression.
+
+## BUGFIX échec install + redémarrage Discord (2025-07)
+- Cause: BDVencordInstallerCli.exe -install renvoyait un code non nul (échec silencieux) =>
+  Command failed. Abandon du CLI.
+- Nouvelle méthode (installer.js): reproduit l'installeur officiel Vencord SANS binaire externe:
+  * télécharge le build BDVencord (release tag "devbuild": patcher.js/preload.js/renderer.js/
+    renderer.css + .map) dans %APPDATA%/Vencord/dist ;
+  * pour chaque Discord (Local\Discord*\app-*\resources): renomme app.asar->_app.asar, écrit un
+    mini app.asar (writeAppAsar, port de app_asar.go) => index.js = require("<dist>/patcher.js");
+  * dépose AutoQuest.plugin.js dans %APPDATA%/Vencord/plugins ;
+  * relance Discord via Update.exe --processStart Discord.exe (startDiscord), renameRetry pour
+    gérer les verrous fichier. install() renvoie {patched,plugin,restarted,warnings}.
+  * uninstall(): supprime app.asar patché, restaure _app.asar, purge Vencord, relance Discord.
+- Validé en simulation Linux (arbo Discord factice + @electron/asar): install/reinstall(idempotent)/
+  uninstall OK; erreur claire si aucun Discord.
+- Wizard.js: cleanErr() retire le préfixe "Error invoking remote method ...". Étapes done/uninstalled
+  affichent le redémarrage auto (result.restarted). Testé par agent frontend (A succès+restart,
+  B erreur propre, C succès sans restart, D landing). Sparkle.exe recompilé/signé (78,9 Mo).
+- patch.ps1/unpatch.ps1 (NSIS) restent sur le CLI: à réaligner si le NSIS est réutilisé (non prioritaire).

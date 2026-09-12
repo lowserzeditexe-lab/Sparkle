@@ -1,26 +1,34 @@
 // Sparkle - logique d'installation réelle (process principal Electron, Node).
+//
+// Méthode : identique à l'installeur officiel Vencord (patcher.go / app_asar.go) :
+//   1. télécharge le build BDVencord (Vencord compatible plugins BetterDiscord)
+//      dans %APPDATA%\Vencord\dist ;
+//   2. pour chaque installation Discord : renomme resources\app.asar -> _app.asar
+//      puis écrit un mini app.asar (format ASAR) dont index.js = require("<patcher.js>") ;
+//   3. dépose AutoQuest.plugin.js dans %APPDATA%\Vencord\plugins ;
+//   4. relance Discord.
 const fs = require("fs");
 const path = require("path");
 const https = require("https");
-const os = require("os");
-const { execSync, execFileSync } = require("child_process");
+const { execSync, spawn } = require("child_process");
 
 const FLAVORS = ["Discord", "DiscordPTB", "DiscordCanary", "DiscordDevelopment"];
 const PLUGIN_NAME = "AutoQuest.plugin.js";
+
+// Release "devbuild" de BDVencord : contient patcher.js / preload.js / renderer.js / renderer.css
+const BDVENCORD_RELEASE_API = "https://api.github.com/repos/TheLazySquid/BDVencord/releases/tags/devbuild";
+const BDVENCORD_DIST_FILES = ["patcher.js", "preload.js", "renderer.js", "renderer.css"];
+const BDVENCORD_DIST_OPTIONAL = ["patcher.js.map", "preload.js.map", "renderer.js.map", "renderer.css.map"];
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function vencordDir() {
   return path.join(process.env.APPDATA, "Vencord");
 }
 
-function copyDir(src, dst) {
-  fs.mkdirSync(dst, { recursive: true });
-  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
-    const s = path.join(src, entry.name);
-    const d = path.join(dst, entry.name);
-    if (entry.isDirectory()) copyDir(s, d);
-    else fs.copyFileSync(s, d);
-  }
-}
+/* ------------------------------------------------------------------ */
+/*  Réseau                                                             */
+/* ------------------------------------------------------------------ */
 
 // Télécharge un contenu HTTPS en suivant les redirections (assets GitHub).
 function httpsGet(url, headers = {}) {
@@ -43,167 +51,277 @@ function httpsGet(url, headers = {}) {
   });
 }
 
-// Installeur BDVencord (Vencord modifié compatible plugins BetterDiscord).
-const BDVENCORD_CLI_URL =
-  "https://github.com/TheLazySquid/BDVencord/releases/download/installer/BDVencordInstallerCli.exe";
-
-// Télécharge BDVencordInstallerCli.exe dans un fichier temporaire et renvoie son chemin.
-async function downloadBDVencordCli(onStep) {
+// Télécharge le build BDVencord dans distDst. Renvoie le hash/nom de la release.
+async function downloadBDVencordDist(distDst, onStep) {
   const step = (label, pct) => { try { onStep && onStep(label, pct); } catch (_) {} };
-  step("Téléchargement de l'installeur BDVencord", 20);
-  const buf = await httpsGet(BDVENCORD_CLI_URL);
-  if (!buf || buf.length < 100000) {
-    throw new Error("Téléchargement de BDVencordInstallerCli.exe invalide.");
+  step("Recherche de la dernière version de BDVencord", 12);
+
+  let meta;
+  try {
+    const buf = await httpsGet(BDVENCORD_RELEASE_API, { Accept: "application/vnd.github+json" });
+    meta = JSON.parse(buf.toString("utf8"));
+  } catch (e) {
+    throw new Error("Impossible de contacter GitHub pour récupérer BDVencord (" + e.message + "). Vérifie ta connexion Internet.");
   }
-  const dest = path.join(os.tmpdir(), `BDVencordInstallerCli-${Date.now()}.exe`);
-  fs.writeFileSync(dest, buf);
-  return dest;
+  const assets = Array.isArray(meta.assets) ? meta.assets : [];
+  const byName = new Map(assets.map((a) => [a.name, a.browser_download_url]));
+  for (const f of BDVENCORD_DIST_FILES) {
+    if (!byName.has(f)) throw new Error("Fichier " + f + " introuvable dans la release BDVencord.");
+  }
+
+  fs.mkdirSync(distDst, { recursive: true });
+  const all = [...BDVENCORD_DIST_FILES, ...BDVENCORD_DIST_OPTIONAL.filter((f) => byName.has(f))];
+  for (let i = 0; i < all.length; i++) {
+    const name = all[i];
+    step("Téléchargement de BDVencord (" + name + ")", 15 + Math.round((i / all.length) * 30));
+    try {
+      const buf = await httpsGet(byName.get(name));
+      fs.writeFileSync(path.join(distDst, name), buf);
+    } catch (e) {
+      if (BDVENCORD_DIST_FILES.includes(name)) {
+        throw new Error("Échec du téléchargement de " + name + " : " + e.message);
+      }
+    }
+  }
+  if (!fs.existsSync(path.join(distDst, "patcher.js"))) {
+    throw new Error("patcher.js manquant après téléchargement.");
+  }
+  return meta.name || meta.tag_name || "devbuild";
 }
 
-// Exécute le CLI BDVencord de façon non interactive (télécharge le build + patche Discord).
-function runBDVencordCli(cliPath, args) {
-  execFileSync(cliPath, args, { stdio: "ignore", windowsHide: true, timeout: 180000 });
+/* ------------------------------------------------------------------ */
+/*  ASAR minimal (port de app_asar.go de l'installeur Vencord)         */
+/* ------------------------------------------------------------------ */
+
+function writeAppAsar(outFile, patcherPath) {
+  const indexJs = "require(" + JSON.stringify(patcherPath) + ")";
+  const packageJson = '{\n\t"name": "discord",\n\t"main": "index.js"\n}';
+  const indexBytes = Buffer.byteLength(indexJs, "utf8");
+  const pkgBytes = Buffer.byteLength(packageJson, "utf8");
+
+  const header = {
+    files: {
+      "index.js": { size: indexBytes, offset: "0" },
+      "package.json": { size: pkgBytes, offset: String(indexBytes) },
+    },
+  };
+  let headerString = JSON.stringify(header);
+  const headerStringSize = Buffer.byteLength(headerString, "utf8");
+  const dataSize = 4;
+  const alignedSize = (headerStringSize + dataSize - 1) & ~(dataSize - 1);
+  const headerSize = alignedSize + 8;
+  const headerObjectSize = alignedSize + dataSize;
+  const diff = alignedSize - headerStringSize;
+  if (diff > 0) headerString += "0".repeat(diff);
+
+  const prefix = Buffer.alloc(16);
+  prefix.writeUInt32LE(dataSize, 0);
+  prefix.writeUInt32LE(headerSize, 4);
+  prefix.writeUInt32LE(headerObjectSize, 8);
+  prefix.writeUInt32LE(headerStringSize, 12);
+
+  fs.writeFileSync(outFile, Buffer.concat([
+    prefix,
+    Buffer.from(headerString, "utf8"),
+    Buffer.from(indexJs + packageJson, "utf8"),
+  ]));
 }
+
+/* ------------------------------------------------------------------ */
+/*  Discord : processus, détection, patch                              */
+/* ------------------------------------------------------------------ */
 
 function closeDiscord() {
   for (const f of FLAVORS) {
-    try { execSync(`taskkill /F /IM ${f}.exe`, { stdio: "ignore" }); } catch (_) {}
+    try { execSync(`taskkill /F /IM ${f}.exe`, { stdio: "ignore", windowsHide: true }); } catch (_) {}
   }
 }
 
-function patchFlavor(flavor, patcherPathForward) {
+// Relance Discord via Update.exe (méthode standard Squirrel sous Windows).
+function startDiscord(flavor) {
   const base = path.join(process.env.LOCALAPPDATA, flavor);
-  if (!fs.existsSync(base)) return 0;
-  let patched = 0;
-  const appDirs = fs.readdirSync(base, { withFileTypes: true })
-    .filter((e) => e.isDirectory() && e.name.startsWith("app-"));
-  for (const dirEnt of appDirs) {
-    const resources = path.join(base, dirEnt.name, "resources");
-    if (!fs.existsSync(resources)) continue;
-    const asar = path.join(resources, "app.asar");
-    const backup = path.join(resources, "_app.asar");
-    const appFolder = path.join(resources, "app");
-
-    if (!fs.existsSync(backup)) {
-      if (fs.existsSync(asar) && fs.statSync(asar).isFile()) {
-        fs.renameSync(asar, backup);
-      } else {
-        continue;
+  const updater = path.join(base, "Update.exe");
+  try {
+    if (fs.existsSync(updater)) {
+      const child = spawn(updater, ["--processStart", `${flavor}.exe`], {
+        detached: true, stdio: "ignore", windowsHide: true, cwd: base,
+      });
+      child.unref();
+      return true;
+    }
+    // Repli : lancer directement le dernier app-*\Discord.exe
+    const appDirs = fs.readdirSync(base, { withFileTypes: true })
+      .filter((e) => e.isDirectory() && e.name.startsWith("app-"))
+      .map((e) => e.name).sort();
+    if (appDirs.length) {
+      const exe = path.join(base, appDirs[appDirs.length - 1], `${flavor}.exe`);
+      if (fs.existsSync(exe)) {
+        const child = spawn(exe, [], { detached: true, stdio: "ignore", windowsHide: true });
+        child.unref();
+        return true;
       }
     }
+  } catch (_) {}
+  return false;
+}
+
+function appDirsOf(flavor) {
+  const base = path.join(process.env.LOCALAPPDATA || "", flavor);
+  if (!process.env.LOCALAPPDATA || !fs.existsSync(base)) return [];
+  return fs.readdirSync(base, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && e.name.startsWith("app-"))
+    .map((e) => path.join(base, e.name));
+}
+
+// Renommage avec quelques tentatives (fichier parfois encore verrouillé par Discord).
+async function renameRetry(from, to) {
+  let lastErr;
+  for (let i = 0; i < 6; i++) {
+    try { fs.renameSync(from, to); return; } catch (e) { lastErr = e; await sleep(500); }
+  }
+  throw new Error("Impossible de renommer " + path.basename(from) + " (Discord est peut-être encore ouvert) : " + lastErr.message);
+}
+
+// Patche un dossier resources\ (méthode officielle Vencord). Renvoie true si patché.
+async function patchResources(resources, patcherPath) {
+  const asar = path.join(resources, "app.asar");
+  const backup = path.join(resources, "_app.asar");
+  const legacyApp = path.join(resources, "app"); // ancien patch Sparkle (dossier app)
+
+  const hasBackup = fs.existsSync(backup);
+  const asarIsFile = fs.existsSync(asar) && fs.statSync(asar).isFile();
+  if (!hasBackup && !asarIsFile) return false; // pas une installation Discord exploitable
+
+  if (!hasBackup) {
+    // Première installation : sauvegarder l'asar original
+    await renameRetry(asar, backup);
     const unpacked = path.join(resources, "app.asar.unpacked");
     const unpackedBak = path.join(resources, "_app.asar.unpacked");
     if (fs.existsSync(unpacked) && !fs.existsSync(unpackedBak)) {
       try { fs.renameSync(unpacked, unpackedBak); } catch (_) {}
     }
-    if (fs.existsSync(appFolder)) fs.rmSync(appFolder, { recursive: true, force: true });
-    fs.mkdirSync(appFolder, { recursive: true });
-    fs.writeFileSync(
-      path.join(appFolder, "index.js"),
-      `require("${patcherPathForward}");\nrequire("../_app.asar");\n`,
-      "utf8"
-    );
-    fs.writeFileSync(
-      path.join(appFolder, "package.json"),
-      '{ "name": "discord", "main": "index.js" }',
-      "utf8"
-    );
-    patched++;
+  } else if (fs.existsSync(asar)) {
+    // Déjà patché : on remplace juste notre mini asar (fichier ou ancien dossier)
+    fs.rmSync(asar, { recursive: true, force: true });
   }
-  return patched;
+  if (fs.existsSync(legacyApp)) fs.rmSync(legacyApp, { recursive: true, force: true });
+
+  writeAppAsar(asar, patcherPath);
+  return true;
 }
 
-function ensureSettings(installPlugin) {
-  const vdir = vencordDir();
-  const sdir = path.join(vdir, "settings");
-  const sfile = path.join(sdir, "settings.json");
-  fs.mkdirSync(sdir, { recursive: true });
-  let obj = {};
-  if (fs.existsSync(sfile)) {
-    try { obj = JSON.parse(fs.readFileSync(sfile, "utf8")); } catch (_) { obj = {}; }
+async function unpatchResources(resources) {
+  const asar = path.join(resources, "app.asar");
+  const backup = path.join(resources, "_app.asar");
+  const legacyApp = path.join(resources, "app");
+  let did = false;
+  if (fs.existsSync(legacyApp)) { fs.rmSync(legacyApp, { recursive: true, force: true }); did = true; }
+  if (fs.existsSync(backup)) {
+    if (fs.existsSync(asar)) fs.rmSync(asar, { recursive: true, force: true });
+    await renameRetry(backup, asar);
+    did = true;
   }
-  if (!obj.plugins) obj.plugins = {};
-  if (!obj.plugins.BdCompat) obj.plugins.BdCompat = {};
-  obj.plugins.BdCompat.enabled = true;
-  if (installPlugin) {
-    const list = Array.isArray(obj.plugins.BdCompat.enabledBdPlugins)
-      ? obj.plugins.BdCompat.enabledBdPlugins : [];
-    if (!list.includes(PLUGIN_NAME)) list.push(PLUGIN_NAME);
-    obj.plugins.BdCompat.enabledBdPlugins = list;
+  const unpackedBak = path.join(resources, "_app.asar.unpacked");
+  const unpacked = path.join(resources, "app.asar.unpacked");
+  if (fs.existsSync(unpackedBak) && !fs.existsSync(unpacked)) {
+    try { fs.renameSync(unpackedBak, unpacked); } catch (_) {}
   }
-  fs.writeFileSync(sfile, JSON.stringify(obj, null, 2), "utf8");
+  return did;
 }
+
+/* ------------------------------------------------------------------ */
+/*  API exposée                                                        */
+/* ------------------------------------------------------------------ */
 
 // payloadDir contient: AutoQuest.plugin.js
 async function install({ installPlugin }, payloadDir, onProgress) {
   const p = (pct, label) => { try { onProgress({ pct, label }); } catch (_) {} };
 
-  const vdir = vencordDir();
-  const pluginsDir = path.join(vdir, "plugins");
+  if (!process.env.LOCALAPPDATA || !process.env.APPDATA) {
+    throw new Error("Variables LOCALAPPDATA/APPDATA introuvables : cet installeur fonctionne sous Windows.");
+  }
 
-  p(8, "Préparation de l'environnement");
+  const vdir = vencordDir();
+  const distDst = path.join(vdir, "dist");
+  const pluginsDir = path.join(vdir, "plugins");
+  const patcherPath = path.join(distDst, "patcher.js");
+
+  p(5, "Préparation de l'environnement");
   fs.mkdirSync(vdir, { recursive: true });
 
-  // 1) Récupérer l'installeur BDVencord (Vencord + compatibilité BetterDiscord)
-  const cli = await downloadBDVencordCli((label, pct) => p(pct, label));
+  // 0) Vérifier qu'il y a bien un Discord à patcher
+  const targets = [];
+  for (const flavor of FLAVORS) {
+    for (const appDir of appDirsOf(flavor)) {
+      const resources = path.join(appDir, "resources");
+      if (fs.existsSync(resources)) targets.push({ flavor, resources });
+    }
+  }
+  if (!targets.length) {
+    throw new Error("Aucune installation Discord trouvée dans " + process.env.LOCALAPPDATA + " (Discord, PTB, Canary). Installe Discord puis relance Sparkle.");
+  }
 
-  // 2) Fermer Discord avant de patcher
-  p(45, "Fermeture de Discord");
+  // 1) Télécharger le build BDVencord (Vencord + compatibilité BetterDiscord)
+  await downloadBDVencordDist(distDst, (label, pct) => p(pct, label));
+
+  // 2) Fermer Discord
+  p(50, "Fermeture de Discord");
   closeDiscord();
-  await new Promise((r) => setTimeout(r, 700));
+  await sleep(1200);
 
-  // 3) Installer BDVencord : télécharge le build compatible BD et patche Discord automatiquement
-  p(60, "Installation de BDVencord dans Discord");
-  runBDVencordCli(cli, ["-install", "-branch", "auto"]);
+  // 3) Injection dans chaque installation Discord (méthode officielle Vencord)
+  p(60, "Injection de BDVencord dans Discord");
+  let patched = 0;
+  const patchedFlavors = new Set();
+  const errors = [];
+  for (const t of targets) {
+    try {
+      if (await patchResources(t.resources, patcherPath)) { patched++; patchedFlavors.add(t.flavor); }
+    } catch (e) {
+      errors.push(t.flavor + " : " + e.message);
+    }
+  }
+  if (!patched) {
+    throw new Error("Échec de l'injection dans Discord." + (errors.length ? "\n" + errors.join("\n") : ""));
+  }
 
-  // 4) Déposer le plugin AutoQuest dans le dossier des plugins BetterDiscord de BDVencord
+  // 4) Plugin AutoQuest -> dossier des plugins BetterDiscord de BDVencord
   if (installPlugin) {
     p(85, "Ajout du plugin AutoQuest");
     fs.mkdirSync(pluginsDir, { recursive: true });
     fs.copyFileSync(path.join(payloadDir, PLUGIN_NAME), path.join(pluginsDir, PLUGIN_NAME));
   }
 
-  // 5) Nettoyage du CLI temporaire
-  try { fs.rmSync(cli, { force: true }); } catch (_) {}
+  // 5) Relancer Discord
+  p(94, "Redémarrage de Discord");
+  let restarted = 0;
+  for (const flavor of patchedFlavors) if (startDiscord(flavor)) restarted++;
 
   p(100, "Terminé");
-  return { patched: 1, plugin: installPlugin };
+  return { patched, plugin: !!installPlugin, restarted, warnings: errors };
 }
 
 async function uninstall() {
   closeDiscord();
-  await new Promise((r) => setTimeout(r, 500));
+  await sleep(1000);
 
-  // 1) Désinstallation propre via le CLI BDVencord (retire le patch de Discord)
-  try {
-    const cli = await downloadBDVencordCli();
-    runBDVencordCli(cli, ["-uninstall", "-branch", "auto"]);
-    try { fs.rmSync(cli, { force: true }); } catch (_) {}
-  } catch (_) { /* on tente quand même la restauration manuelle ci-dessous */ }
-
-  // 2) Restauration manuelle de secours (si un ancien patch subsiste)
   let restored = 0;
+  const restoredFlavors = new Set();
   for (const flavor of FLAVORS) {
-    const base = path.join(process.env.LOCALAPPDATA, flavor);
-    if (!fs.existsSync(base)) continue;
-    for (const dirEnt of fs.readdirSync(base, { withFileTypes: true })) {
-      if (!dirEnt.isDirectory() || !dirEnt.name.startsWith("app-")) continue;
-      const resources = path.join(base, dirEnt.name, "resources");
-      const appFolder = path.join(resources, "app");
-      const backup = path.join(resources, "_app.asar");
-      const asar = path.join(resources, "app.asar");
-      let did = false;
-      if (fs.existsSync(appFolder)) { fs.rmSync(appFolder, { recursive: true, force: true }); did = true; }
-      if (fs.existsSync(backup) && !fs.existsSync(asar)) { fs.renameSync(backup, asar); did = true; }
-      const unpackedBak = path.join(resources, "_app.asar.unpacked");
-      const unpacked = path.join(resources, "app.asar.unpacked");
-      if (fs.existsSync(unpackedBak) && !fs.existsSync(unpacked)) fs.renameSync(unpackedBak, unpacked);
-      if (did) restored++;
+    for (const appDir of appDirsOf(flavor)) {
+      const resources = path.join(appDir, "resources");
+      if (!fs.existsSync(resources)) continue;
+      try {
+        if (await unpatchResources(resources)) { restored++; restoredFlavors.add(flavor); }
+      } catch (_) {}
     }
   }
   const vdir = vencordDir();
-  if (fs.existsSync(vdir)) fs.rmSync(vdir, { recursive: true, force: true });
-  return { ok: true, restored };
+  if (fs.existsSync(vdir)) { try { fs.rmSync(vdir, { recursive: true, force: true }); } catch (_) {} }
+
+  let restarted = 0;
+  for (const flavor of restoredFlavors) if (startDiscord(flavor)) restarted++;
+  return { ok: true, restored, restarted };
 }
 
 function readPluginMeta(payloadDir) {
@@ -220,23 +338,16 @@ function readPluginMeta(payloadDir) {
 
 function detect() {
   const out = [];
-  const localAppData = process.env.LOCALAPPDATA;
-  if (!localAppData) return out;
+  if (!process.env.LOCALAPPDATA) return out;
   for (const flavor of FLAVORS) {
-    const base = path.join(localAppData, flavor);
-    if (!fs.existsSync(base)) continue;
-    const appDirs = fs.readdirSync(base, { withFileTypes: true })
-      .filter((e) => e.isDirectory() && e.name.startsWith("app-"));
+    const appDirs = appDirsOf(flavor);
     if (!appDirs.length) continue;
-    const versions = appDirs.map((d) => d.name.replace(/^app-/, "")).sort();
+    const versions = appDirs.map((d) => path.basename(d).replace(/^app-/, "")).sort();
     const latest = versions[versions.length - 1];
-    let patched = false;
-    for (const d of appDirs) {
-      if (fs.existsSync(path.join(base, d.name, "resources", "_app.asar"))) patched = true;
-    }
+    const patched = appDirs.some((d) => fs.existsSync(path.join(d, "resources", "_app.asar")));
     out.push({ flavor, version: latest, patched });
   }
   return out;
 }
 
-module.exports = { install, uninstall, detect, readPluginMeta, downloadBDVencordCli };
+module.exports = { install, uninstall, detect, readPluginMeta, downloadBDVencordDist, writeAppAsar };

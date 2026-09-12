@@ -139,6 +139,23 @@ backend:
         -comment: "✅ ALL TESTS PASSED. GET /api/info returns correct JSON with extension, plugin (name=AutoQuest, author=999none, version=1.5.0, description), steps, and platform fields. GET /api/installer/download?autoquest=true returns HTTP 200 with content-disposition filename 'Sparkle.exe' and correct content-type. GET /api/stats returns downloads count and correctly increments after download (verified: count increased from 4 to 5 after triggering /api/plugin/download). MongoDB integration working correctly."
 
 frontend:
+  - task: "BUGFIX échec installation (CLI BDVencord) -> injection manuelle + redémarrage Discord"
+    implemented: true
+    working: true
+    file: "desktop/installer.js, frontend/src/Wizard.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: false
+        -agent: "user"
+        -comment: "Windows: 'Error invoking remote method sparkle:install: Command failed: ...BDVencordInstallerCli.exe -install -branch auto'. Demande aussi: redémarrer Discord à la fin."
+        -working: "NA"
+        -agent: "main"
+        -comment: "installer.js réécrit: télécharge le build BDVencord (release devbuild: patcher/preload/renderer), injecte comme l'installeur officiel Vencord (app.asar -> _app.asar + mini app.asar ASAR avec require(patcher)), dépose le plugin dans %APPDATA%/Vencord/plugins, relance Discord via Update.exe --processStart. Validé en simulation Linux (arborescence Discord factice): install/reinstall/uninstall OK, asar validé par @electron/asar. Wizard: cleanErr() retire le préfixe Electron, étape done affiche 'Discord a été relancé' si result.restarted>0."
+        -working: true
+        -agent: "testing"
+        -comment: "✅ ALL 4 TESTS PASSED. TEST A (success with restart): Install flow works perfectly, done step shows 'Sparkle est installé', 'Discord a été relancé', and 'pop-up de bienvenue Sparkle va s'afficher' - NO fallback instructions shown. Uninstall flow works, shows 'Sparkle désinstallé' and 'Discord a été relancé'. TEST B (error path): Error message properly cleaned - shows 'Échec de l'installation' with clean message 'Aucune installation Discord trouvée...' WITHOUT 'Error invoking remote method' prefix or 'Error:' prefix. Restart button shows 'Recommencer'. TEST C (success without restart): Shows 'Sparkle est installé' with fallback instructions 'Relance Discord' and 'Ferme-le complètement puis rouvre-le' - does NOT show 'Discord a été relancé'. TEST D (web mode regression): Landing page renders correctly without wizard, hero-section present, step-welcome absent. No console errors. Bug fix verified working correctly."
   - task: "BUGFIX interface assistant (mode desktop Sparkle.exe) sans styles"
     implemented: true
     working: true
@@ -173,14 +190,13 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "1.3"
-  test_sequence: 3
+  version: "1.4"
+  test_sequence: 4
   run_ui: false
 
 test_plan:
   current_focus:
-    - "BUGFIX interface assistant (mode desktop Sparkle.exe) sans styles"
-    - "Landing page AutoQuest by Sparkle (Hero, Présentation, Fonctionnalités, FAQ)"
+    - "All critical features tested and verified"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -192,4 +208,6 @@ agent_communication:
     -message: "✅ Backend testing complete. All 23 tests passed (4 endpoints tested). Created comprehensive backend_test.py at /app/backend_test.py. All endpoints working correctly: /api/info returns proper JSON structure with plugin metadata, /api/plugin/download serves 117KB plugin file with correct headers, /api/installer/download serves Sparkle.exe, /api/stats tracks downloads correctly with MongoDB. No issues found. Backend is production-ready."
     -agent: "testing"
     -message: "✅ UI BUGFIX VERIFICATION COMPLETE. All tests passed. DESKTOP MODE: Wizard interface renders with full styling (CSS properly loaded: .stage flex, .btn-primary pill shape, .title 42px, Discord chip visible). Install flow works (welcome → plugin → install → done). Uninstall flow works (uninstall → uninstalled → home). WEB MODE: Landing page renders correctly (hero, download buttons, 6 features, FAQ accordion). Both interfaces properly isolated with separate CSS chunks. No console errors in either mode. Bug fix successful - wizard is no longer unstyled."
+    -agent: "testing"
+    -message: "✅ INSTALLATION BUG FIX VERIFICATION COMPLETE. All 4 comprehensive tests passed: (A) Success with restart - shows 'Discord a été relancé' and 'pop-up de bienvenue', NO fallback instructions, uninstall also shows restart message. (B) Error path - cleanErr() working perfectly, strips 'Error invoking remote method' and 'Error:' prefixes, shows clean error message, restart button shows 'Recommencer'. (C) Success without restart - shows fallback instructions 'Ferme-le complètement puis rouvre-le', does NOT show auto-restart message. (D) Web mode regression - landing page renders correctly without wizard. No console errors. Screenshots captured for all scenarios. Bug fix is production-ready."
 

@@ -39,6 +39,10 @@ export default function Wizard() {
   const [result, setResult] = useState(null);
   const [uninResult, setUninResult] = useState(null);
   const [error, setError] = useState("");
+  // Electron préfixe les erreurs IPC : "Error invoking remote method 'x': Error: ..." -> on garde l'essentiel.
+  const cleanErr = (e) => String(e?.message || e || "Erreur inconnue")
+    .replace(/^Error invoking remote method '[^']+':\s*/i, "")
+    .replace(/^Error:\s*/i, "");
   const anchorRef = useRef(null);
 
   useEffect(() => {
@@ -67,7 +71,7 @@ export default function Wizard() {
         await new Promise((r) => setTimeout(r, 350));
         bridge.detect?.().then((d) => setDetected(Array.isArray(d) ? d : [])).catch(() => {});
         go("done");
-      } catch (e) { setError(e?.message || String(e)); go("done"); }
+      } catch (e) { setError(cleanErr(e)); go("done"); }
       return;
     }
     const active = opts.autoquest ? steps : steps.filter((s) => s.id !== "plugin");
@@ -92,7 +96,7 @@ export default function Wizard() {
         await new Promise((r) => setTimeout(r, 350));
         bridge.detect?.().then((d) => setDetected(Array.isArray(d) ? d : [])).catch(() => {});
         go("uninstalled");
-      } catch (e) { setError(e?.message || String(e)); go("uninstalled"); }
+      } catch (e) { setError(cleanErr(e)); go("uninstalled"); }
       return;
     }
     for (let p = 0; p <= 100; p += 20) { setProgress(p); await new Promise((r) => setTimeout(r, 200)); }
@@ -221,7 +225,7 @@ export default function Wizard() {
                       {result?.patched ? ` ${result.patched} installation${result.patched > 1 ? "s" : ""} Discord patchée${result.patched > 1 ? "s" : ""}.` : ""}
                     </p>
                     <div className="steps-mini">
-                      <div className="mini"><span className="m-n">1</span><div><div className="m-t">Relance Discord</div><div className="m-d">Ferme-le complètement puis rouvre-le.</div></div></div>
+                      <div className="mini"><span className="m-n">1</span><div><div className="m-t">{result?.restarted ? "Discord a été relancé" : "Relance Discord"}</div><div className="m-d">{result?.restarted ? "Il redémarre avec BDVencord : la pop-up de bienvenue Sparkle va s’afficher." : "Ferme-le complètement puis rouvre-le."}</div></div></div>
                       <div className="mini"><span className="m-n">2</span><div><div className="m-t">Ouvre les réglages Vencord</div><div className="m-d">{opts.autoquest ? `Active ${plugin.name} dans l’onglet BD Plugins si besoin.` : "La compatibilité BetterDiscord est prête."}</div></div></div>
                     </div>
                   </>
@@ -279,7 +283,7 @@ export default function Wizard() {
                     <h1 className="title sm display">Sparkle désinstallé</h1>
                     <p className="subtitle">
                       {isDesktop
-                        ? `Discord a été restauré${uninResult?.restored ? ` (${uninResult.restored} installation${uninResult.restored > 1 ? "s" : ""})` : ""} et le dossier Vencord supprimé. Relance Discord.`
+                        ? `Discord a été restauré${uninResult?.restored ? ` (${uninResult.restored} installation${uninResult.restored > 1 ? "s" : ""})` : ""} et le dossier Vencord supprimé. ${uninResult?.restarted ? "Discord a été relancé." : "Relance Discord."}`
                         : "Aperçu : dans l'app Sparkle, Discord serait restauré et le dossier Vencord supprimé."}
                     </p>
                   </>
