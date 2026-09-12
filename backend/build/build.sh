@@ -4,10 +4,9 @@
 set -e
 cd "$(dirname "$0")"
 
-# 1. Rafraîchir le payload depuis backend/payload
-rm -rf payload/dist && mkdir -p payload/dist
+# 1. Rafraîchir le payload depuis backend/payload (plus besoin du build Vencord :
+#    BDVencord est téléchargé/installé à l'exécution par patch.ps1)
 cp ../payload/AutoQuest.plugin.js payload/AutoQuest.plugin.js
-find ../payload/Vencord/dist -type f ! -name "*.map" -exec cp {} payload/dist/ \;
 
 # 2. Icône
 convert ../../frontend/public/brand/logo.png -background none -resize 256x256 \

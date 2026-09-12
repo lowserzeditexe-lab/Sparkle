@@ -2,7 +2,8 @@
 const fs = require("fs");
 const path = require("path");
 const https = require("https");
-const { execSync } = require("child_process");
+const os = require("os");
+const { execSync, execFileSync } = require("child_process");
 
 const FLAVORS = ["Discord", "DiscordPTB", "DiscordCanary", "DiscordDevelopment"];
 const PLUGIN_NAME = "AutoQuest.plugin.js";
@@ -42,36 +43,26 @@ function httpsGet(url, headers = {}) {
   });
 }
 
-// Télécharge le build Vencord (dist) depuis la dernière release GitHub officielle.
-const VENCORD_DIST_FILES = [
-  "patcher.js", "patcher.js.map",
-  "preload.js", "preload.js.map",
-  "renderer.js", "renderer.js.map",
-  "renderer.css", "renderer.css.map",
-];
+// Installeur BDVencord (Vencord modifié compatible plugins BetterDiscord).
+const BDVENCORD_CLI_URL =
+  "https://github.com/TheLazySquid/BDVencord/releases/download/installer/BDVencordInstallerCli.exe";
 
-async function downloadVencord(distDst, onStep) {
+// Télécharge BDVencordInstallerCli.exe dans un fichier temporaire et renvoie son chemin.
+async function downloadBDVencordCli(onStep) {
   const step = (label, pct) => { try { onStep && onStep(label, pct); } catch (_) {} };
-  step("Recherche de la dernière version de Vencord", 18);
-  const metaBuf = await httpsGet(
-    "https://api.github.com/repos/Vendicated/Vencord/releases/latest",
-    { Accept: "application/vnd.github+json" }
-  );
-  const meta = JSON.parse(metaBuf.toString("utf8"));
-  const want = new Set(VENCORD_DIST_FILES);
-  const assets = (meta.assets || []).filter((a) => want.has(a.name));
-  if (!assets.length) throw new Error("Aucun asset Vencord trouvé dans la release.");
-  fs.mkdirSync(distDst, { recursive: true });
-  for (let i = 0; i < assets.length; i++) {
-    const a = assets[i];
-    step(`Téléchargement de Vencord (${a.name})`, 20 + Math.round((i / assets.length) * 25));
-    const buf = await httpsGet(a.browser_download_url);
-    fs.writeFileSync(path.join(distDst, a.name), buf);
+  step("Téléchargement de l'installeur BDVencord", 20);
+  const buf = await httpsGet(BDVENCORD_CLI_URL);
+  if (!buf || buf.length < 100000) {
+    throw new Error("Téléchargement de BDVencordInstallerCli.exe invalide.");
   }
-  // Vérification minimale : patcher.js doit être présent.
-  if (!fs.existsSync(path.join(distDst, "patcher.js"))) {
-    throw new Error("patcher.js manquant après téléchargement.");
-  }
+  const dest = path.join(os.tmpdir(), `BDVencordInstallerCli-${Date.now()}.exe`);
+  fs.writeFileSync(dest, buf);
+  return dest;
+}
+
+// Exécute le CLI BDVencord de façon non interactive (télécharge le build + patche Discord).
+function runBDVencordCli(cliPath, args) {
+  execFileSync(cliPath, args, { stdio: "ignore", windowsHide: true, timeout: 180000 });
 }
 
 function closeDiscord() {
@@ -143,55 +134,54 @@ function ensureSettings(installPlugin) {
   fs.writeFileSync(sfile, JSON.stringify(obj, null, 2), "utf8");
 }
 
-// payloadDir contient: dist/ et AutoQuest.plugin.js
+// payloadDir contient: AutoQuest.plugin.js
 async function install({ installPlugin }, payloadDir, onProgress) {
   const p = (pct, label) => { try { onProgress({ pct, label }); } catch (_) {} };
 
   const vdir = vencordDir();
-  const distDst = path.join(vdir, "dist");
-  const distSrc = path.join(payloadDir, "dist");
+  const pluginsDir = path.join(vdir, "plugins");
 
   p(8, "Préparation de l'environnement");
   fs.mkdirSync(vdir, { recursive: true });
 
-  p(20, "Téléchargement de Vencord");
-  if (fs.existsSync(distDst)) fs.rmSync(distDst, { recursive: true, force: true });
-  try {
-    await downloadVencord(distDst, (label, pct) => p(pct, label));
-  } catch (e) {
-    // Repli : si un build est fourni dans le payload, on l'utilise.
-    if (fs.existsSync(distSrc)) {
-      copyDir(distSrc, distDst);
-    } else {
-      throw new Error("Impossible de télécharger Vencord : " + (e && e.message ? e.message : e));
-    }
-  }
+  // 1) Récupérer l'installeur BDVencord (Vencord + compatibilité BetterDiscord)
+  const cli = await downloadBDVencordCli((label, pct) => p(pct, label));
 
-  if (installPlugin) {
-    p(40, "Ajout du plugin AutoQuest");
-    const bdDir = path.join(vdir, "bdPlugins");
-    fs.mkdirSync(bdDir, { recursive: true });
-    fs.copyFileSync(path.join(payloadDir, PLUGIN_NAME), path.join(bdDir, PLUGIN_NAME));
-  }
-
-  p(55, "Fermeture de Discord");
+  // 2) Fermer Discord avant de patcher
+  p(45, "Fermeture de Discord");
   closeDiscord();
   await new Promise((r) => setTimeout(r, 700));
 
-  p(70, "Injection de Vencord dans Discord");
-  const patcherPathForward = path.join(distDst, "patcher.js").replace(/\\/g, "/");
-  let patched = 0;
-  for (const flavor of FLAVORS) patched += patchFlavor(flavor, patcherPathForward);
+  // 3) Installer BDVencord : télécharge le build compatible BD et patche Discord automatiquement
+  p(60, "Installation de BDVencord dans Discord");
+  runBDVencordCli(cli, ["-install", "-branch", "auto"]);
 
-  p(90, "Activation des composants");
-  ensureSettings(installPlugin);
+  // 4) Déposer le plugin AutoQuest dans le dossier des plugins BetterDiscord de BDVencord
+  if (installPlugin) {
+    p(85, "Ajout du plugin AutoQuest");
+    fs.mkdirSync(pluginsDir, { recursive: true });
+    fs.copyFileSync(path.join(payloadDir, PLUGIN_NAME), path.join(pluginsDir, PLUGIN_NAME));
+  }
+
+  // 5) Nettoyage du CLI temporaire
+  try { fs.rmSync(cli, { force: true }); } catch (_) {}
 
   p(100, "Terminé");
-  return { patched, plugin: installPlugin };
+  return { patched: 1, plugin: installPlugin };
 }
 
-function uninstall() {
+async function uninstall() {
   closeDiscord();
+  await new Promise((r) => setTimeout(r, 500));
+
+  // 1) Désinstallation propre via le CLI BDVencord (retire le patch de Discord)
+  try {
+    const cli = await downloadBDVencordCli();
+    runBDVencordCli(cli, ["-uninstall", "-branch", "auto"]);
+    try { fs.rmSync(cli, { force: true }); } catch (_) {}
+  } catch (_) { /* on tente quand même la restauration manuelle ci-dessous */ }
+
+  // 2) Restauration manuelle de secours (si un ancien patch subsiste)
   let restored = 0;
   for (const flavor of FLAVORS) {
     const base = path.join(process.env.LOCALAPPDATA, flavor);
@@ -249,4 +239,4 @@ function detect() {
   return out;
 }
 
-module.exports = { install, uninstall, detect, readPluginMeta, downloadVencord };
+module.exports = { install, uninstall, detect, readPluginMeta, downloadBDVencordCli };

@@ -103,3 +103,22 @@ l'extension et ajoute le plugin par défaut. Doit être testable dans la preview
 - LIMITE: les .exe (Sparkle.exe Electron 79MB, Spark-Setup*.exe NSIS) doivent être recompilés
   sur un environnement de build Windows; non recompilables/testables sur ce serveur Linux
   (makensis absent, pas de toolchain Windows).
+
+## Bascule vers BDVencord (2025-07) — choix utilisateur "Approche BDVencord"
+- Constat: Vencord officiel ne peut pas recevoir BdCompat après build. On utilise BDVencord
+  (TheLazySquid/BDVencord), fork prébuilé compatible plugins BetterDiscord.
+- installer.js (Electron): downloadBDVencordCli() télécharge BDVencordInstallerCli.exe
+  (release "installer"), l'exécute non-interactif: `-install -branch auto` (patch Discord +
+  téléchargement du build). Puis dépose AutoQuest.plugin.js dans %APPDATA%\Vencord\plugins.
+  uninstall(): CLI `-uninstall -branch auto` + restauration manuelle de secours.
+  Téléchargement du CLI vérifié en réel (7,9 Mo, PE MZ).
+- NSIS: patch.ps1/unpatch.ps1 réécrits (même logique via CLI). spark.nsi/build.sh: retrait du
+  bundle dist devenu inutile. Plugin déposé dans Vencord\plugins.
+- Frontend: web=landing (App.js), desktop .exe=assistant (Wizard.js restauré depuis git,
+  choix fait dans index.js selon window.sparkle.isDesktop). Copie landing/pop-up mise à jour
+  (Vencord compatible BetterDiscord / BDVencord).
+- Dossier plugins BDVencord = %APPDATA%\Vencord\plugins. Flags CLI = ceux du Vencord Installer
+  (-install/-uninstall/-repair/-branch/-location).
+- RAPPEL: .exe à recompiler sur Windows (desktop/build-exe.sh Electron, backend/build/build.sh
+  NSIS). Non recompilable/testable sur ce serveur Linux. Patch Discord + pop-up = testables
+  uniquement sur Windows/Discord réel.

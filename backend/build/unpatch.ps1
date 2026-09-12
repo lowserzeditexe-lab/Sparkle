@@ -1,9 +1,26 @@
-# Spark - désinstallation : restaure Discord.
+# Spark - desinstallation : retire BDVencord de Discord et restaure le client.
 $ErrorActionPreference = "Continue"
 $flavors = @("Discord", "DiscordPTB", "DiscordCanary", "DiscordDevelopment")
+$CliUrl  = "https://github.com/TheLazySquid/BDVencord/releases/download/installer/BDVencordInstallerCli.exe"
+
+function Log($m) { Write-Host "[Spark] $m" }
+
 foreach ($p in $flavors) { Get-Process -Name $p -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
 Start-Sleep -Milliseconds 800
 
+# 1. Desinstallation propre via le CLI BDVencord
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+$cli = Join-Path $env:TEMP "BDVencordInstallerCli.exe"
+try {
+    Invoke-WebRequest -Uri $CliUrl -OutFile $cli -Headers @{ "User-Agent" = "SparkleInstaller" }
+    Start-Process -FilePath $cli -ArgumentList @("-uninstall", "-branch", "auto") -Wait -WindowStyle Hidden
+    Remove-Item $cli -Force -ErrorAction SilentlyContinue
+    Log "BDVencord desinstalle via CLI."
+} catch {
+    Log "CLI indisponible, restauration manuelle : $_"
+}
+
+# 2. Restauration manuelle de secours
 foreach ($flavor in $flavors) {
     $base = Join-Path $env:LOCALAPPDATA $flavor
     if (-not (Test-Path $base)) { continue }
@@ -19,5 +36,5 @@ foreach ($flavor in $flavors) {
         if ((Test-Path $unpackedBak) -and (-not (Test-Path $unpacked))) { Move-Item -Path $unpackedBak -Destination $unpacked -Force -ErrorAction SilentlyContinue }
     }
 }
-Write-Host "[Spark] Discord restaure."
+Log "Discord restaure."
 exit 0

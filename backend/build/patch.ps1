@@ -1,17 +1,19 @@
 param([int]$WithPlugin = 1)
 
-# Spark - patch headless : injecte Vencord dans Discord + active BdCompat/AutoQuest.
+# Spark - installe BDVencord (Vencord + compatibilite plugins BetterDiscord)
+# puis depose le plugin AutoQuest. Non interactif.
 $ErrorActionPreference = "Continue"
 
-$VencordDir   = Join-Path $env:APPDATA "Vencord"
-$DistDst      = Join-Path $VencordDir "dist"
-$SettingsDir  = Join-Path $VencordDir "settings"
-$SettingsFile = Join-Path $SettingsDir "settings.json"
-$PluginName   = "AutoQuest.plugin.js"
-$flavors = @("Discord", "DiscordPTB", "DiscordCanary", "DiscordDevelopment")
-$procNames = @("Discord", "DiscordPTB", "DiscordCanary", "DiscordDevelopment")
+$VencordDir  = Join-Path $env:APPDATA "Vencord"
+$PluginsDir  = Join-Path $VencordDir "plugins"
+$PluginName  = "AutoQuest.plugin.js"
+$CliUrl      = "https://github.com/TheLazySquid/BDVencord/releases/download/installer/BDVencordInstallerCli.exe"
+$procNames   = @("Discord", "DiscordPTB", "DiscordCanary", "DiscordDevelopment")
 
 function Log($m) { Write-Host "[Spark] $m" }
+
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+New-Item -ItemType Directory -Path $VencordDir -Force | Out-Null
 
 # 1. Fermer Discord
 foreach ($p in $procNames) {
@@ -19,84 +21,39 @@ foreach ($p in $procNames) {
 }
 Start-Sleep -Milliseconds 900
 
-# 1.5 Télécharger le build Vencord (dist) depuis la dernière release GitHub officielle
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-New-Item -ItemType Directory -Path $DistDst -Force | Out-Null
-$wantFiles = @("patcher.js","patcher.js.map","preload.js","preload.js.map","renderer.js","renderer.js.map","renderer.css","renderer.css.map")
+# 2. Telecharger l'installeur CLI BDVencord
+$cli = Join-Path $env:TEMP "BDVencordInstallerCli.exe"
 try {
-    Log "Telechargement de Vencord..."
-    $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/Vendicated/Vencord/releases/latest" -Headers @{ "User-Agent" = "SparkleInstaller"; "Accept" = "application/vnd.github+json" }
-    foreach ($asset in $rel.assets) {
-        if ($wantFiles -contains $asset.name) {
-            $dest = Join-Path $DistDst $asset.name
-            Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $dest -Headers @{ "User-Agent" = "SparkleInstaller" }
-        }
-    }
-    if (Test-Path (Join-Path $DistDst "patcher.js")) { Log "Vencord telecharge." }
-    else { Log "ATTENTION: patcher.js manquant apres telechargement." }
+    Log "Telechargement de l'installeur BDVencord..."
+    Invoke-WebRequest -Uri $CliUrl -OutFile $cli -Headers @{ "User-Agent" = "SparkleInstaller" }
 } catch {
-    Log "Echec du telechargement de Vencord : $_"
+    Log "Echec du telechargement de BDVencord : $_"
+    exit 1
 }
 
-# 2. Patch chaque installation Discord
-$patcherPath = (Join-Path $DistDst "patcher.js") -replace '\\', '/'
-$indexJs = "require(`"$patcherPath`");`nrequire(`"../_app.asar`");"
-$anyPatched = $false
+# 3. Installer BDVencord (telecharge le build + patche Discord automatiquement)
+try {
+    Log "Installation de BDVencord dans Discord..."
+    $proc = Start-Process -FilePath $cli -ArgumentList @("-install", "-branch", "auto") -Wait -PassThru -WindowStyle Hidden
+    Log "Installeur BDVencord code: $($proc.ExitCode)"
+} catch {
+    Log "Echec de l'installation de BDVencord : $_"
+}
 
-foreach ($flavor in $flavors) {
-    $base = Join-Path $env:LOCALAPPDATA $flavor
-    if (-not (Test-Path $base)) { continue }
-    $appDirs = Get-ChildItem -Path $base -Directory -Filter "app-*" -ErrorAction SilentlyContinue
-    foreach ($appDir in $appDirs) {
-        $resources = Join-Path $appDir.FullName "resources"
-        if (-not (Test-Path $resources)) { continue }
-        $asar   = Join-Path $resources "app.asar"
-        $backup = Join-Path $resources "_app.asar"
-        $appFolder = Join-Path $resources "app"
-
-        if (-not (Test-Path $backup)) {
-            if (Test-Path $asar -PathType Leaf) {
-                Move-Item -Path $asar -Destination $backup -Force
-            } else { continue }
-        }
-        $unpacked = Join-Path $resources "app.asar.unpacked"
-        $unpackedBak = Join-Path $resources "_app.asar.unpacked"
-        if ((Test-Path $unpacked) -and (-not (Test-Path $unpackedBak))) {
-            Move-Item -Path $unpacked -Destination $unpackedBak -Force -ErrorAction SilentlyContinue
-        }
-        if (Test-Path $appFolder) { Remove-Item $appFolder -Recurse -Force }
-        New-Item -ItemType Directory -Path $appFolder -Force | Out-Null
-        Set-Content -Path (Join-Path $appFolder "index.js") -Value $indexJs -Encoding UTF8
-        Set-Content -Path (Join-Path $appFolder "package.json") -Value '{ "name": "discord", "main": "index.js" }' -Encoding UTF8
-        Log "$flavor $($appDir.Name) patche."
-        $anyPatched = $true
+# 4. Deposer le plugin AutoQuest dans le dossier des plugins BetterDiscord
+if ($WithPlugin -eq 1) {
+    New-Item -ItemType Directory -Path $PluginsDir -Force | Out-Null
+    $src = Join-Path $PSScriptRoot "bdPlugins\$PluginName"
+    if (-not (Test-Path $src)) { $src = Join-Path $PSScriptRoot $PluginName }
+    if (Test-Path $src) {
+        Copy-Item -Path $src -Destination (Join-Path $PluginsDir $PluginName) -Force
+        Log "Plugin AutoQuest depose dans $PluginsDir."
+    } else {
+        Log "ATTENTION: $PluginName introuvable dans le paquet."
     }
 }
-if (-not $anyPatched) { Log "Aucune installation Discord trouvee." }
 
-# 3. settings.json : active BdCompat (+ AutoQuest si demande)
-New-Item -ItemType Directory -Path $SettingsDir -Force | Out-Null
-$obj = $null
-if (Test-Path $SettingsFile) { try { $obj = Get-Content $SettingsFile -Raw | ConvertFrom-Json } catch { $obj = $null } }
-if ($null -eq $obj) { $obj = [PSCustomObject]@{} }
-
-if (-not ($obj.PSObject.Properties.Name -contains "plugins")) {
-    $obj | Add-Member -NotePropertyName "plugins" -NotePropertyValue ([PSCustomObject]@{})
-}
-if (-not ($obj.plugins.PSObject.Properties.Name -contains "BdCompat")) {
-    $obj.plugins | Add-Member -NotePropertyName "BdCompat" -NotePropertyValue ([PSCustomObject]@{})
-}
-$bd = $obj.plugins.BdCompat
-if (-not ($bd.PSObject.Properties.Name -contains "enabled")) { $bd | Add-Member -NotePropertyName "enabled" -NotePropertyValue $true }
-else { $bd.enabled = $true }
-
-if ($WithPlugin -eq 1) {
-    $list = @()
-    if (($bd.PSObject.Properties.Name -contains "enabledBdPlugins") -and $bd.enabledBdPlugins) { $list = @($bd.enabledBdPlugins) }
-    if ($list -notcontains $PluginName) { $list += $PluginName }
-    if ($bd.PSObject.Properties.Name -contains "enabledBdPlugins") { $bd.enabledBdPlugins = $list }
-    else { $bd | Add-Member -NotePropertyName "enabledBdPlugins" -NotePropertyValue $list }
-}
-($obj | ConvertTo-Json -Depth 12) | Set-Content -Path $SettingsFile -Encoding UTF8
-Log "settings.json mis a jour."
+# 5. Nettoyage
+try { Remove-Item $cli -Force -ErrorAction SilentlyContinue } catch {}
+Log "Termine."
 exit 0

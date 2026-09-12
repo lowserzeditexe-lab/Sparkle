@@ -22,7 +22,7 @@ const FEATURES = [
 
 const FAQ = [
   { q: "Qu'est-ce qu'AutoQuest ?", a: "AutoQuest est un plugin qui complète automatiquement les quêtes Discord et t'offre un tableau de bord intégré pour tout suivre. Il fait partie de la suite Sparkle." },
-  { q: "Quelle différence entre l'installeur et le plugin ?", a: "L'installeur Sparkle configure tout pour toi : il installe l'extension Vencord (BdCompat) dans Discord et ajoute AutoQuest, activé par défaut. Le plugin seul est le fichier AutoQuest.plugin.js à glisser toi-même si tu utilises déjà BetterDiscord ou Vencord." },
+  { q: "Quelle différence entre l'installeur et le plugin ?", a: "L'installeur Sparkle configure tout pour toi : il installe Vencord avec la compatibilité BetterDiscord (via BDVencord) dans Discord et ajoute AutoQuest, prêt à l'emploi. Le plugin seul est le fichier AutoQuest.plugin.js à glisser toi-même si tu utilises déjà BetterDiscord ou un Vencord compatible BD." },
   { q: "Lequel dois-je télécharger ?", a: "Si tu pars de zéro, prends l'installeur Sparkle : c'est le plus simple. Si tu as déjà BetterDiscord/Vencord installé, télécharge directement le plugin AutoQuest." },
   { q: "Est-ce que je risque quelque chose ?", a: "AutoQuest s'appuie sur les mécaniques officielles des quêtes Discord. Comme tout plugin tiers, utilise-le en connaissance de cause. L'installeur peut être retiré à tout moment." },
   { q: "Comment installer le plugin manuellement ?", a: "Ouvre Discord → Paramètres → BetterDiscord (Plugins) → Ouvre le dossier des plugins, puis dépose-y AutoQuest.plugin.js. Active-le dans la liste et c'est prêt." },
@@ -96,7 +96,7 @@ export default function App() {
               <div className="dl-ic"><Sparkles size={20} /></div>
               <div className="dl-body">
                 <div className="dl-t">Installeur Sparkle</div>
-                <div className="dl-d">Tout-en-un : installe Vencord (BdCompat) + AutoQuest, activé par défaut. Recommandé.</div>
+                <div className="dl-d">Tout-en-un : installe Vencord compatible BetterDiscord + AutoQuest, prêt à l’emploi. Recommandé.</div>
               </div>
               <button className="btn btn-primary dl-btn" data-testid="download-installer-btn" onClick={downloadInstaller}>
                 <Download size={16} /> Installeur <span className="dl-meta">.exe</span>
@@ -142,7 +142,7 @@ export default function App() {
           <div className="about-card" data-testid="about-card-sparkle">
             <div className="ab-ic alt"><Sparkles size={22} /></div>
             <h3>Sparkle</h3>
-            <p>L’installeur qui met en place l’extension Vencord (BdCompat) et ajoute AutoQuest, activé par défaut — sans manipulation technique.</p>
+            <p>L’installeur qui met en place Vencord avec la compatibilité BetterDiscord et ajoute AutoQuest, prêt à l’emploi — sans manipulation technique.</p>
           </div>
           <div className="about-card" data-testid="about-card-easy">
             <div className="ab-ic"><Zap size={22} /></div>

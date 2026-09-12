@@ -492,8 +492,8 @@ module.exports = (() => {
                     title: "Ce que Sparkle inclut",
                     type: "added",
                     items: [
-                        "**Vencord** — le client mod est installé et injecté dans Discord.",
-                        "**BdCompat** — la compatibilité des plugins BetterDiscord est activée.",
+                        "**Vencord (BDVencord)** — le client mod est installé et injecté dans Discord.",
+                        "**Compatibilité BetterDiscord** — tes plugins BetterDiscord fonctionnent désormais dans Discord.",
                         "**AutoQuest** — complète automatiquement tes quêtes Discord, avec un tableau de bord intégré.",
                     ],
                 },
@@ -524,8 +524,8 @@ module.exports = (() => {
                     const text = [
                         blurb, "",
                         "Sparkle inclut :",
-                        "• Vencord (client mod installé et injecté)",
-                        "• BdCompat (plugins BetterDiscord activés)",
+                        "• Vencord / BDVencord (client mod installé et injecté)",
+                        "• Compatibilité BetterDiscord (tes plugins BD fonctionnent)",
                         "• AutoQuest (complétion automatique des quêtes + dashboard)",
                     ].join("\n");
                     BdApi.UI.showConfirmationModal(title, text, {

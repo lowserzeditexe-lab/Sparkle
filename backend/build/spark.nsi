@@ -39,9 +39,6 @@ SetCompressor /SOLID lzma
 !insertmacro MUI_LANGUAGE "English"
 
 Section "Spark" SEC01
-  SetOutPath "$INSTDIR\dist"
-  File /r "payload\dist\*.*"
-
   SetOutPath "$INSTDIR"
   File "patch.ps1"
   File "unpatch.ps1"
@@ -51,7 +48,7 @@ Section "Spark" SEC01
   File "payload\AutoQuest.plugin.js"
 !endif
 
-  DetailPrint "Injection de Vencord dans Discord..."
+  DetailPrint "Installation de BDVencord dans Discord..."
   SetOutPath "$INSTDIR"
   nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\patch.ps1" -WithPlugin ${WITHPLUGIN}'
   Pop $0
@@ -59,9 +56,9 @@ Section "Spark" SEC01
 
   WriteUninstaller "$INSTDIR\Uninstall-Spark.exe"
 
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Spark" "DisplayName" "Spark (Vencord BdCompat)"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Spark" "DisplayName" "Spark (BDVencord + AutoQuest)"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Spark" "UninstallString" "$\"$INSTDIR\Uninstall-Spark.exe$\""
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Spark" "DisplayIcon" "$INSTDIR\dist\patcher.js"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Spark" "DisplayIcon" "$INSTDIR\Uninstall-Spark.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Spark" "Publisher" "Spark"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Spark" "NoModify" "1"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Spark" "NoRepair" "1"
