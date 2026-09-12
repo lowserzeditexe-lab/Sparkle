@@ -101,3 +101,73 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: >
+  Créer une page d'atterrissage (landing page) pour distribuer l'installeur Sparkle
+  et le plugin BetterDiscord AutoQuest, indépendamment. L'assistant d'installation
+  précédent est remplacé complètement par cette landing. AutoQuest est mis en avant
+  comme faisant partie de Sparkle. Sections: Hero, Présentation, Fonctionnalités, FAQ.
+
+backend:
+  - task: "Endpoint /api/plugin/download (téléchargement du plugin AutoQuest.plugin.js)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Nouvel endpoint ajouté pour servir AutoQuest.plugin.js en pièce jointe (application/javascript). Vérifié via curl: 200 + content-disposition correct."
+        -working: true
+        -agent: "testing"
+        -comment: "✅ ALL TESTS PASSED. Endpoint returns HTTP 200, correct content-type (application/javascript), content-disposition with filename 'AutoQuest.plugin.js', body is 120612 bytes (~117KB), and starts with plugin header '@name AutoQuest'. Plugin metadata correctly parsed (name: AutoQuest, author: 999none, version: 1.5.0)."
+  - task: "Endpoints existants /api/info, /api/installer/download, /api/stats"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Non modifiés fonctionnellement. Restauration des .env manquants (MONGO_URL, DB_NAME, REACT_APP_BACKEND_URL). Backend redémarre correctement."
+        -working: true
+        -agent: "testing"
+        -comment: "✅ ALL TESTS PASSED. GET /api/info returns correct JSON with extension, plugin (name=AutoQuest, author=999none, version=1.5.0, description), steps, and platform fields. GET /api/installer/download?autoquest=true returns HTTP 200 with content-disposition filename 'Sparkle.exe' and correct content-type. GET /api/stats returns downloads count and correctly increments after download (verified: count increased from 4 to 5 after triggering /api/plugin/download). MongoDB integration working correctly."
+
+frontend:
+  - task: "Landing page AutoQuest by Sparkle (Hero, Présentation, Fonctionnalités, FAQ)"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/App.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Assistant remplacé par une landing page single-page. Boutons de téléchargement installeur + plugin, nav ancres, FAQ accordéon. Rendu vérifié par screenshot."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.2"
+  test_sequence: 2
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Endpoint /api/plugin/download (téléchargement du plugin AutoQuest.plugin.js)"
+    - "Endpoints existants /api/info, /api/installer/download, /api/stats"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    -agent: "main"
+    -message: "Landing page créée et .env restaurés. Merci de tester les endpoints backend: GET /api/info (JSON extension+plugin), GET /api/plugin/download (doit renvoyer 200, content-type application/javascript, content-disposition attachment filename AutoQuest.plugin.js, corps = fichier JS non vide), GET /api/installer/download?autoquest=true (200, filename Sparkle.exe), GET /api/stats (compteur downloads incrémenté). Vérifier que /api/stats augmente après un download."
+    -agent: "testing"
+    -message: "✅ Backend testing complete. All 23 tests passed (4 endpoints tested). Created comprehensive backend_test.py at /app/backend_test.py. All endpoints working correctly: /api/info returns proper JSON structure with plugin metadata, /api/plugin/download serves 117KB plugin file with correct headers, /api/installer/download serves Sparkle.exe, /api/stats tracks downloads correctly with MongoDB. No issues found. Backend is production-ready."
+

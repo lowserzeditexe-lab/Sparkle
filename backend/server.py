@@ -113,6 +113,17 @@ async def download_installer(autoquest: bool = Query(True)):
     return FileResponse(str(exe), media_type="application/vnd.microsoft.portable-executable", headers=headers)
 
 
+@api_router.get("/plugin/download")
+async def download_plugin():
+    """Serve the raw AutoQuest.plugin.js for BetterDiscord/Vencord users."""
+    await _record_download({"pluginOnly": True})
+    plugin = PAYLOAD_DIR / "AutoQuest.plugin.js"
+    if not plugin.exists():
+        return {"error": "plugin not found"}
+    headers = {"Content-Disposition": 'attachment; filename="AutoQuest.plugin.js"'}
+    return FileResponse(str(plugin), media_type="application/javascript", headers=headers)
+
+
 @api_router.get("/stats")
 async def stats():
     try:
