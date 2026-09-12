@@ -468,7 +468,80 @@ module.exports = (() => {
                 setTimeout(() => this.checkForUpdates(), 10_000);
             }
 
+            // Sparkle : pop-up de bienvenue (une fois par version)
+            setTimeout(() => { try { this.showSparkleWelcome(); } catch (e) { console.error("[Sparkle] welcome failed", e); } }, 2500);
+
             BdApi.UI.showToast(this.t("started"), { type: "success" });
+        }
+
+        /* ================================================================
+         *  SPARKLE WELCOME (changelog-style popup, once per version)
+         * ================================================================ */
+        showSparkleWelcome() {
+            const SPARKLE_VERSION = META.version;
+            const KEY = "sparkleWelcomeVersion";
+            let seen = null;
+            try { seen = BdApi.Data.load(META.name, KEY); } catch (_) {}
+            if (seen === SPARKLE_VERSION) return; // déjà vu pour cette version
+
+            const title = "Bienvenue sur Sparkle";
+            const subtitle = `Version ${SPARKLE_VERSION}`;
+            const blurb = "Sparkle a configuré ton Discord pour toi. Voici tout ce qui vient d'être installé et activé automatiquement.";
+            const changes = [
+                {
+                    title: "Ce que Sparkle inclut",
+                    type: "added",
+                    items: [
+                        "**Vencord** — le client mod est installé et injecté dans Discord.",
+                        "**BdCompat** — la compatibilité des plugins BetterDiscord est activée.",
+                        "**AutoQuest** — complète automatiquement tes quêtes Discord, avec un tableau de bord intégré.",
+                    ],
+                },
+                {
+                    title: "Pour démarrer",
+                    type: "improved",
+                    items: [
+                        "Ouvre le **tableau de bord AutoQuest** depuis l'icône dans la barre d'outils.",
+                        "Tes quêtes se complètent toutes seules — laisse Sparkle travailler pour toi.",
+                    ],
+                },
+            ];
+
+            const markSeen = () => { try { BdApi.Data.save(META.name, KEY, SPARKLE_VERSION); } catch (_) {} };
+
+            // 1) Modal changelog natif de BetterDiscord (style "nouvelle version")
+            try {
+                if (BdApi.UI && typeof BdApi.UI.showChangelogModal === "function") {
+                    BdApi.UI.showChangelogModal({ title, subtitle, blurb, changes });
+                    markSeen();
+                    return;
+                }
+            } catch (e) { console.error("[Sparkle] changelog modal error", e); }
+
+            // 2) Fallback : modal de confirmation simple
+            try {
+                if (BdApi.UI && typeof BdApi.UI.showConfirmationModal === "function") {
+                    const text = [
+                        blurb, "",
+                        "Sparkle inclut :",
+                        "• Vencord (client mod installé et injecté)",
+                        "• BdCompat (plugins BetterDiscord activés)",
+                        "• AutoQuest (complétion automatique des quêtes + dashboard)",
+                    ].join("\n");
+                    BdApi.UI.showConfirmationModal(title, text, {
+                        confirmText: "C'est parti",
+                        cancelText: null,
+                    });
+                    markSeen();
+                    return;
+                }
+            } catch (e) { console.error("[Sparkle] confirmation modal error", e); }
+
+            // 3) Dernier recours : toast
+            try {
+                BdApi.UI.showToast(`${title} — Vencord + BdCompat + AutoQuest sont prêts !`, { type: "success", timeout: 6000 });
+            } catch (_) {}
+            markSeen();
         }
 
         stop() {

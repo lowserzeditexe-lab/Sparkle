@@ -1,6 +1,7 @@
 // Sparkle - logique d'installation réelle (process principal Electron, Node).
 const fs = require("fs");
 const path = require("path");
+const https = require("https");
 const { execSync } = require("child_process");
 
 const FLAVORS = ["Discord", "DiscordPTB", "DiscordCanary", "DiscordDevelopment"];
@@ -17,6 +18,59 @@ function copyDir(src, dst) {
     const d = path.join(dst, entry.name);
     if (entry.isDirectory()) copyDir(s, d);
     else fs.copyFileSync(s, d);
+  }
+}
+
+// Télécharge un contenu HTTPS en suivant les redirections (assets GitHub).
+function httpsGet(url, headers = {}) {
+  return new Promise((resolve, reject) => {
+    https
+      .get(url, { headers: { "User-Agent": "SparkleInstaller", ...headers } }, (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          res.resume();
+          return resolve(httpsGet(res.headers.location, headers));
+        }
+        if (res.statusCode !== 200) {
+          res.resume();
+          return reject(new Error("HTTP " + res.statusCode + " pour " + url));
+        }
+        const chunks = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () => resolve(Buffer.concat(chunks)));
+      })
+      .on("error", reject);
+  });
+}
+
+// Télécharge le build Vencord (dist) depuis la dernière release GitHub officielle.
+const VENCORD_DIST_FILES = [
+  "patcher.js", "patcher.js.map",
+  "preload.js", "preload.js.map",
+  "renderer.js", "renderer.js.map",
+  "renderer.css", "renderer.css.map",
+];
+
+async function downloadVencord(distDst, onStep) {
+  const step = (label, pct) => { try { onStep && onStep(label, pct); } catch (_) {} };
+  step("Recherche de la dernière version de Vencord", 18);
+  const metaBuf = await httpsGet(
+    "https://api.github.com/repos/Vendicated/Vencord/releases/latest",
+    { Accept: "application/vnd.github+json" }
+  );
+  const meta = JSON.parse(metaBuf.toString("utf8"));
+  const want = new Set(VENCORD_DIST_FILES);
+  const assets = (meta.assets || []).filter((a) => want.has(a.name));
+  if (!assets.length) throw new Error("Aucun asset Vencord trouvé dans la release.");
+  fs.mkdirSync(distDst, { recursive: true });
+  for (let i = 0; i < assets.length; i++) {
+    const a = assets[i];
+    step(`Téléchargement de Vencord (${a.name})`, 20 + Math.round((i / assets.length) * 25));
+    const buf = await httpsGet(a.browser_download_url);
+    fs.writeFileSync(path.join(distDst, a.name), buf);
+  }
+  // Vérification minimale : patcher.js doit être présent.
+  if (!fs.existsSync(path.join(distDst, "patcher.js"))) {
+    throw new Error("patcher.js manquant après téléchargement.");
   }
 }
 
@@ -100,9 +154,18 @@ async function install({ installPlugin }, payloadDir, onProgress) {
   p(8, "Préparation de l'environnement");
   fs.mkdirSync(vdir, { recursive: true });
 
-  p(20, "Copie du build Vencord (BdCompat)");
+  p(20, "Téléchargement de Vencord");
   if (fs.existsSync(distDst)) fs.rmSync(distDst, { recursive: true, force: true });
-  copyDir(distSrc, distDst);
+  try {
+    await downloadVencord(distDst, (label, pct) => p(pct, label));
+  } catch (e) {
+    // Repli : si un build est fourni dans le payload, on l'utilise.
+    if (fs.existsSync(distSrc)) {
+      copyDir(distSrc, distDst);
+    } else {
+      throw new Error("Impossible de télécharger Vencord : " + (e && e.message ? e.message : e));
+    }
+  }
 
   if (installPlugin) {
     p(40, "Ajout du plugin AutoQuest");
@@ -186,4 +249,4 @@ function detect() {
   return out;
 }
 
-module.exports = { install, uninstall, detect, readPluginMeta };
+module.exports = { install, uninstall, detect, readPluginMeta, downloadVencord };

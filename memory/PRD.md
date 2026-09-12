@@ -84,3 +84,22 @@ l'extension et ajoute le plugin par défaut. Doit être testable dans la preview
 - DÉTECTION : installer.detect() liste les installs Discord (flavor + version + patché) ; affichée
   sur l'accueil et l'écran de désinstallation (desktop). IPC sparkle:detect.
 - Rebuild : desktop/build-exe.sh (recompile renderer -> archive -> exe -> signe si pfx présent).
+
+## Landing page + Vencord auto-download + Welcome popup (2025-07)
+- Landing page: /app/frontend/src/App.js remplacé (assistant supprimé). Sections Hero,
+  Présentation, Fonctionnalités AutoQuest, FAQ. 2 téléchargements indépendants:
+  Installeur Sparkle (/api/installer/download) + Plugin AutoQuest (/api/plugin/download NOUVEAU).
+- Welcome popup: AutoQuest.plugin.js -> showSparkleWelcome() appelé dans start(), une fois par
+  version (BdApi.Data key sparkleWelcomeVersion). Style changelog Discord via
+  BdApi.UI.showChangelogModal (fallback showConfirmationModal, puis toast). Explique
+  Vencord + BdCompat + AutoQuest. Synchronisé dans backend/payload, desktop/resources/payload,
+  backend/build/payload.
+- Vencord auto-download: installer.js (Electron, fn downloadVencord) + patch.ps1 (NSIS)
+  téléchargent le dist officiel depuis la latest release Vendicated/Vencord
+  (patcher.js, preload.js, renderer.js, renderer.css + .map). Logique testée en réel sur Linux.
+- BLOQUANT connu: le Vencord OFFICIEL n'inclut PAS BdCompat -> AutoQuest (plugin BetterDiscord
+  chargé via BdCompat) ne se chargera PAS avec ce build. Nécessite un build Vencord custom
+  incluant BdCompat pour qu'AutoQuest fonctionne.
+- LIMITE: les .exe (Sparkle.exe Electron 79MB, Spark-Setup*.exe NSIS) doivent être recompilés
+  sur un environnement de build Windows; non recompilables/testables sur ce serveur Linux
+  (makensis absent, pas de toolchain Windows).

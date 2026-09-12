@@ -19,6 +19,25 @@ foreach ($p in $procNames) {
 }
 Start-Sleep -Milliseconds 900
 
+# 1.5 Télécharger le build Vencord (dist) depuis la dernière release GitHub officielle
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+New-Item -ItemType Directory -Path $DistDst -Force | Out-Null
+$wantFiles = @("patcher.js","patcher.js.map","preload.js","preload.js.map","renderer.js","renderer.js.map","renderer.css","renderer.css.map")
+try {
+    Log "Telechargement de Vencord..."
+    $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/Vendicated/Vencord/releases/latest" -Headers @{ "User-Agent" = "SparkleInstaller"; "Accept" = "application/vnd.github+json" }
+    foreach ($asset in $rel.assets) {
+        if ($wantFiles -contains $asset.name) {
+            $dest = Join-Path $DistDst $asset.name
+            Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $dest -Headers @{ "User-Agent" = "SparkleInstaller" }
+        }
+    }
+    if (Test-Path (Join-Path $DistDst "patcher.js")) { Log "Vencord telecharge." }
+    else { Log "ATTENTION: patcher.js manquant apres telechargement." }
+} catch {
+    Log "Echec du telechargement de Vencord : $_"
+}
+
 # 2. Patch chaque installation Discord
 $patcherPath = (Join-Path $DistDst "patcher.js") -replace '\\', '/'
 $indexJs = "require(`"$patcherPath`");`nrequire(`"../_app.asar`");"
