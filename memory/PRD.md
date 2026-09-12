@@ -122,3 +122,14 @@ l'extension et ajoute le plugin par défaut. Doit être testable dans la preview
 - RAPPEL: .exe à recompiler sur Windows (desktop/build-exe.sh Electron, backend/build/build.sh
   NSIS). Non recompilable/testable sur ce serveur Linux. Patch Discord + pop-up = testables
   uniquement sur Windows/Discord réel.
+
+## Rebuild Sparkle.exe sous Linux (2025-07) — OK
+- Chaîne: p7zip-full + osslsigncode installés. app-archive.7z extrait -> dist/win-unpacked,
+  mise à jour resources/app (main.js, preload.js, installer.js BDVencord, build renderer
+  PUBLIC_URL=. ), resources/payload/AutoQuest.plugin.js (pop-up), suppression payload/dist.
+  Ré-archive 7z -> build-exe.sh (7zSD.sfx + sfx-config + archive) -> signé sparkle.pfx
+  (auto-signé + horodatage DigiCert) -> backend/dist_installers/Sparkle.exe (78,9 Mo, MZ).
+- Vérifié: contenu SFX (installer.js 9366 o, plugin 124307 o, renderer main.51df28b3.js),
+  GET /api/installer/download renvoie exactement ce fichier.
+- Rappel: overlay emergent retiré de l'index.html desktop. dist/ supprimé après build
+  (ré-extraire app-archive.7z pour rebuild). Cert auto-signé => SmartScreen avertira.
