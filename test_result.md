@@ -139,9 +139,26 @@ backend:
         -comment: "✅ ALL TESTS PASSED. GET /api/info returns correct JSON with extension, plugin (name=AutoQuest, author=999none, version=1.5.0, description), steps, and platform fields. GET /api/installer/download?autoquest=true returns HTTP 200 with content-disposition filename 'Sparkle.exe' and correct content-type. GET /api/stats returns downloads count and correctly increments after download (verified: count increased from 4 to 5 after triggering /api/plugin/download). MongoDB integration working correctly."
 
 frontend:
+  - task: "BUGFIX interface assistant (mode desktop Sparkle.exe) sans styles"
+    implemented: true
+    working: true
+    file: "frontend/src/index.js, frontend/src/Wizard.js, frontend/src/Wizard.css"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: false
+        -agent: "user"
+        -comment: "Utilisateur: 'L'interface de l'app ne fonctionne pas correctement'. Cause: App.css réécrit pour la landing, l'assistant (Wizard.js, affiché dans le .exe quand window.sparkle.isDesktop) n'avait plus aucun style (.stage/.slide/.choices absents du CSS)."
+        -working: "NA"
+        -agent: "main"
+        -comment: "Fix: CSS d'origine restauré dans Wizard.css (importé par Wizard.js). index.js charge paresseusement (React.lazy) Wizard si window.sparkle.isDesktop sinon App (landing): chaque interface a son propre chunk CSS, sans collision. Vérifié en simulation desktop: assistant stylé (stage flex, bouton pill, chip Discord). .exe recompilé avec le chunk CSS 273 (.stage présent)."
+        -working: true
+        -agent: "testing"
+        -comment: "✅ BUGFIX VERIFIED. Desktop mode (with window.sparkle mock injected via page.add_init_script): Wizard interface renders correctly with full styling. Verified CSS properties: .stage display:flex, .btn-primary border-radius:999px (pill), .title font-size:42px, .dchip Discord chip shows 'Discord 1.0.9160'. Install flow works perfectly (welcome → plugin choice → install → done with 'Sparkle est installé' message). Uninstall flow works perfectly (uninstall → uninstalled → back to welcome with 'Sparkle désinstallé' message). No console errors. Screenshots confirm wizard is beautifully styled, not raw text."
   - task: "Landing page AutoQuest by Sparkle (Hero, Présentation, Fonctionnalités, FAQ)"
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/src/App.js"
     stuck_count: 0
     priority: "high"
@@ -150,24 +167,29 @@ frontend:
         -working: "NA"
         -agent: "main"
         -comment: "Assistant remplacé par une landing page single-page. Boutons de téléchargement installeur + plugin, nav ancres, FAQ accordéon. Rendu vérifié par screenshot."
+        -working: true
+        -agent: "testing"
+        -comment: "✅ REGRESSION TEST PASSED. Web mode (without window.sparkle mock): Landing page renders correctly. Verified: hero-section visible, step-welcome NOT present, window.sparkle does NOT exist. All elements present: download-installer-btn, download-plugin-btn, features-section with 6 feature cards, faq-section. FAQ accordion works correctly: faq-item-0 open by default, clicking toggles open/closed, only one item open at a time. No console errors. Landing page and wizard are properly isolated with separate CSS chunks."
 
 metadata:
   created_by: "main_agent"
-  version: "1.2"
-  test_sequence: 2
+  version: "1.3"
+  test_sequence: 3
   run_ui: false
 
 test_plan:
   current_focus:
-    - "Endpoint /api/plugin/download (téléchargement du plugin AutoQuest.plugin.js)"
-    - "Endpoints existants /api/info, /api/installer/download, /api/stats"
+    - "BUGFIX interface assistant (mode desktop Sparkle.exe) sans styles"
+    - "Landing page AutoQuest by Sparkle (Hero, Présentation, Fonctionnalités, FAQ)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
     -agent: "main"
-    -message: "Landing page créée et .env restaurés. Merci de tester les endpoints backend: GET /api/info (JSON extension+plugin), GET /api/plugin/download (doit renvoyer 200, content-type application/javascript, content-disposition attachment filename AutoQuest.plugin.js, corps = fichier JS non vide), GET /api/installer/download?autoquest=true (200, filename Sparkle.exe), GET /api/stats (compteur downloads incrémenté). Vérifier que /api/stats augmente après un download."
+    -message: "BUGFIX à vérifier (UI). L'app a 2 interfaces selon window.sparkle.isDesktop: (1) web = landing (App.js), (2) desktop .exe = assistant (Wizard.js). Pour tester l'assistant dans le navigateur, injecter AVANT chargement (page.add_init_script) un mock: window.sparkle = { isDesktop:true, getInfo: async()=>({isDesktop:true, plugin:{name:'AutoQuest',author:'999none',version:'1.5.0',description:'...'}}), detect: async()=>([{flavor:'Discord',version:'1.0.9160',patched:false}]), install: async(o)=>({patched:1, plugin:!!o.installPlugin}), uninstall: async()=>({ok:true,restored:1}), onProgress:(cb)=>{window.__p=cb} }. Vérifier: assistant STYLÉ (pas de texte brut), data-testid step-welcome -> welcome-start-btn -> step-plugin (choice-plugin-yes/no) -> prepare-start-btn -> step-install -> step-done; open-uninstall-btn -> step-uninstall -> uninstall-confirm-btn -> step-uninstalled. Vérifier aussi que SANS mock, la landing s'affiche (hero-section, download-installer-btn, download-plugin-btn, faq-toggle-0) et pas l'assistant."
     -agent: "testing"
     -message: "✅ Backend testing complete. All 23 tests passed (4 endpoints tested). Created comprehensive backend_test.py at /app/backend_test.py. All endpoints working correctly: /api/info returns proper JSON structure with plugin metadata, /api/plugin/download serves 117KB plugin file with correct headers, /api/installer/download serves Sparkle.exe, /api/stats tracks downloads correctly with MongoDB. No issues found. Backend is production-ready."
+    -agent: "testing"
+    -message: "✅ UI BUGFIX VERIFICATION COMPLETE. All tests passed. DESKTOP MODE: Wizard interface renders with full styling (CSS properly loaded: .stage flex, .btn-primary pill shape, .title 42px, Discord chip visible). Install flow works (welcome → plugin → install → done). Uninstall flow works (uninstall → uninstalled → home). WEB MODE: Landing page renders correctly (hero, download buttons, 6 features, FAQ accordion). Both interfaces properly isolated with separate CSS chunks. No console errors in either mode. Bug fix successful - wizard is no longer unstyled."
 

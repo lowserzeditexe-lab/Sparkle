@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import "@/App.css";
+import "@/Wizard.css";
 import axios from "axios";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -20,7 +20,7 @@ const FLAVOR_LABEL = {
 };
 
 const FALLBACK_STEPS = [
-  { id: "vencord", label: "Copie du build Vencord (BdCompat)" },
+  { id: "vencord", label: "Téléchargement de BDVencord" },
   { id: "plugin", label: "Ajout du plugin AutoQuest" },
   { id: "close", label: "Fermeture de Discord" },
   { id: "inject", label: "Injection de Vencord dans Discord" },
@@ -153,7 +153,7 @@ export default function Wizard() {
                 <div className="hero-mark"><img src={LOGO} alt="logo" /></div>
                 <div className="kicker">Installeur</div>
                 <h1 className="title display">Sparkle</h1>
-                <p className="subtitle">Installe l'extension Vencord <b>BdCompat</b> dans Discord — avec le plugin <b>{plugin.name}</b> en option. Simple, propre, en quelques secondes.</p>
+                <p className="subtitle">Installe <b>Vencord</b> avec la compatibilité <b>BetterDiscord</b> dans Discord — avec le plugin <b>{plugin.name}</b> en option. Simple, propre, en quelques secondes.</p>
                 <DetectPanel />
                 <div className="cta">
                   <button className="btn btn-primary" data-testid="welcome-start-btn" onClick={() => go("plugin")}>
@@ -183,7 +183,7 @@ export default function Wizard() {
                   <div className={`choice ${!opts.autoquest ? "sel" : ""}`} data-testid="choice-plugin-no" onClick={() => setOpts({ autoquest: false })}>
                     <div className="c-check"><Check size={13} strokeWidth={3} /></div>
                     <div className="c-icn"><Puzzle size={22} /></div>
-                    <div className="c-t" style={{ marginTop: 28 }}>Non, seulement BdCompat</div>
+                    <div className="c-t" style={{ marginTop: 28 }}>Non, seulement Vencord</div>
                     <div className="c-d">Installe uniquement l'extension, sans plugin préchargé.</div>
                   </div>
                 </div>
@@ -217,12 +217,12 @@ export default function Wizard() {
                   <>
                     <h1 className="title sm display">Sparkle est installé</h1>
                     <p className="subtitle">
-                      Vencord BdCompat {opts.autoquest ? `et le plugin ${plugin.name} sont` : "est"} installé{opts.autoquest ? "s" : ""} et activé{opts.autoquest ? "s" : ""}.
+                      Vencord (compatible BetterDiscord) {opts.autoquest ? `et le plugin ${plugin.name} sont` : "est"} installé{opts.autoquest ? "s" : ""}.
                       {result?.patched ? ` ${result.patched} installation${result.patched > 1 ? "s" : ""} Discord patchée${result.patched > 1 ? "s" : ""}.` : ""}
                     </p>
                     <div className="steps-mini">
                       <div className="mini"><span className="m-n">1</span><div><div className="m-t">Relance Discord</div><div className="m-d">Ferme-le complètement puis rouvre-le.</div></div></div>
-                      <div className="mini"><span className="m-n">2</span><div><div className="m-t">Ouvre les réglages Vencord</div><div className="m-d">{opts.autoquest ? `BdCompat + ${plugin.name} sont déjà actifs.` : "BdCompat est déjà actif."}</div></div></div>
+                      <div className="mini"><span className="m-n">2</span><div><div className="m-t">Ouvre les réglages Vencord</div><div className="m-d">{opts.autoquest ? `Active ${plugin.name} dans l’onglet BD Plugins si besoin.` : "La compatibilité BetterDiscord est prête."}</div></div></div>
                     </div>
                   </>
                 ) : (
@@ -292,7 +292,7 @@ export default function Wizard() {
           </AnimatePresence>
         </div>
 
-        <div className="foot"><Terminal size={13} /> Sparkle · extension Vencord BdCompat · plugin {plugin.name} par {plugin.author}</div>
+        <div className="foot"><Terminal size={13} /> Sparkle · Vencord compatible BetterDiscord · plugin {plugin.name} par {plugin.author}</div>
       </div>
     </div>
   );

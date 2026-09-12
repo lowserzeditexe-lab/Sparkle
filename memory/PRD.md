@@ -133,3 +133,11 @@ l'extension et ajoute le plugin par défaut. Doit être testable dans la preview
   GET /api/installer/download renvoie exactement ce fichier.
 - Rappel: overlay emergent retiré de l'index.html desktop. dist/ supprimé après build
   (ré-extraire app-archive.7z pour rebuild). Cert auto-signé => SmartScreen avertira.
+
+## BUGFIX interface assistant .exe sans styles (2025-07)
+- Cause: App.css réécrit pour la landing => Wizard.js (assistant desktop) sans CSS dans le .exe.
+- Fix: Wizard.css restauré (git c6dae35), importé par Wizard.js. index.js: React.lazy +
+  Suspense, Wizard si window.sparkle.isDesktop sinon App => chunks CSS séparés (273=assistant,
+  885=landing), aucune collision (.btn/.kicker). publicPath "./" OK sous file://.
+- Textes de l'assistant alignés sur BDVencord. Sparkle.exe recompilé/signé/publié (78,9 Mo).
+- Testé (agent frontend): assistant stylé + flux install/uninstall OK; landing sans régression.
