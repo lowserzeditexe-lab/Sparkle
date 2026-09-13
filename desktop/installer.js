@@ -293,11 +293,15 @@ async function install({ installPlugin }, payloadDir, onProgress) {
     throw new Error("Échec de l'injection dans Discord." + (errors.length ? "\n" + errors.join("\n") : ""));
   }
 
-  // 4) Plugin AutoQuest -> dossier des plugins BetterDiscord de BDVencord
+  // 4) Plugin AutoQuest -> dossier des plugins BetterDiscord de BDVencord + activation
   if (installPlugin) {
     p(85, "Ajout du plugin AutoQuest");
     fs.mkdirSync(pluginsDir, { recursive: true });
     fs.copyFileSync(path.join(payloadDir, PLUGIN_NAME), path.join(pluginsDir, PLUGIN_NAME));
+    // Activer le plugin par défaut : BDVencord ne lance un plugin BD que si
+    // Settings.bdplugins[<@name>] est vrai (persisté dans Vencord/settings/settings.json).
+    // Sans ça, start() ne s'exécute pas -> pas de pop-up de bienvenue.
+    try { enableBdPlugin(readPluginMeta(payloadDir).name || "AutoQuest"); } catch (_) {}
   }
 
   // 5) Relancer Discord
@@ -330,6 +334,25 @@ async function uninstall() {
   let restarted = 0;
   for (const flavor of restoredFlavors) if (startDiscord(flavor)) restarted++;
   return { ok: true, restored, restarted };
+}
+
+// Active un plugin BetterDiscord dans BDVencord en écrivant Vencord/settings/settings.json.
+// BDVencord démarre au lancement les plugins où Settings.bdplugins[id] est vrai (id = @name).
+function enableBdPlugin(pluginName) {
+  const sdir = path.join(vencordDir(), "settings");
+  const sfile = path.join(sdir, "settings.json");
+  fs.mkdirSync(sdir, { recursive: true });
+  let obj = {};
+  if (fs.existsSync(sfile)) {
+    try { obj = JSON.parse(fs.readFileSync(sfile, "utf8")) || {}; } catch (_) { obj = {}; }
+  }
+  if (typeof obj !== "object" || obj === null) obj = {};
+  if (!obj.bdplugins || typeof obj.bdplugins !== "object") obj.bdplugins = {};
+  obj.bdplugins[pluginName] = true;
+  // Ceinture + bretelles : BDVencord utilise plugin.id (= @name) comme clé, mais on
+  // active aussi la clé "nom de fichier" au cas où l'id retomberait dessus.
+  obj.bdplugins[PLUGIN_NAME] = true;
+  fs.writeFileSync(sfile, JSON.stringify(obj, null, 4), "utf8");
 }
 
 function readPluginMeta(payloadDir) {
