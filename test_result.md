@@ -139,6 +139,23 @@ backend:
         -comment: "✅ ALL TESTS PASSED. GET /api/info returns correct JSON with extension, plugin (name=AutoQuest, author=999none, version=1.5.0, description), steps, and platform fields. GET /api/installer/download?autoquest=true returns HTTP 200 with content-disposition filename 'Sparkle.exe' and correct content-type. GET /api/stats returns downloads count and correctly increments after download (verified: count increased from 4 to 5 after triggering /api/plugin/download). MongoDB integration working correctly."
 
 frontend:
+  - task: "BUGFIX ENOENT app.asar (original-fs) + recadrage marque Sparkle en haut"
+    implemented: true
+    working: true
+    file: "desktop/installer.js, frontend/src/Wizard.css"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: false
+        -agent: "user"
+        -comment: "Windows: 'Échec de l'injection dans Discord. Discord : ENOENT, not found in ...app-1.0.9257\\resources\\app.asar'. Demande aussi: recadrer 'Sparkle' en haut de l'interface + icône de l'app."
+        -working: "NA"
+        -agent: "main"
+        -comment: "Cause: fs d'Electron est asar-aware -> renommer/écrire app.asar échoue (ENOENT). Fix: require('original-fs') (alias ofs) pour toutes les opérations sur app.asar/_app.asar; repli sur fs hors Electron. Validé en simulation Node. UI: marque .brand centrée en absolu (offset 0 mesuré) dans un cadre pill. Icône fenêtre/taskbar deja = icon.ico. Icône FICHIER .exe non modifiable ici (host ARM64, slots icône SFX trop petits)."
+        -working: true
+        -agent: "testing"
+        -comment: "✅ ALL 4 TESTS PASSED. TEST 1 (Brand centering): Brand perfectly centered (0.00px offset, within 4px tolerance), position is 'absolute' as required. TEST 2 (Wizard styling & flows): CSS correct (.stage flex, .btn-primary pill 999px), install flow works (welcome → plugin → install → done with 'Sparkle est installé' and 'Discord a été relancé'), uninstall flow works (uninstall → uninstalled with 'Sparkle désinstallé'). TEST 3 (Error message cleaning): Error message clean, shows 'Échec de l'installation' and 'Échec de l'injection dans Discord' WITHOUT 'Error invoking remote method' or 'Error:' prefix - cleanErr() working correctly. TEST 4 (Web regression): Landing page renders correctly with all elements (hero, nav, about, features, faq, download buttons), wizard absent, window.sparkle does not exist. No console errors. Screenshots captured for all tests. UI bugfix verified working correctly."
   - task: "BUGFIX échec installation (CLI BDVencord) -> injection manuelle + redémarrage Discord"
     implemented: true
     working: true
@@ -190,8 +207,8 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "1.4"
-  test_sequence: 4
+  version: "1.5"
+  test_sequence: 5
   run_ui: false
 
 test_plan:
@@ -210,4 +227,6 @@ agent_communication:
     -message: "✅ UI BUGFIX VERIFICATION COMPLETE. All tests passed. DESKTOP MODE: Wizard interface renders with full styling (CSS properly loaded: .stage flex, .btn-primary pill shape, .title 42px, Discord chip visible). Install flow works (welcome → plugin → install → done). Uninstall flow works (uninstall → uninstalled → home). WEB MODE: Landing page renders correctly (hero, download buttons, 6 features, FAQ accordion). Both interfaces properly isolated with separate CSS chunks. No console errors in either mode. Bug fix successful - wizard is no longer unstyled."
     -agent: "testing"
     -message: "✅ INSTALLATION BUG FIX VERIFICATION COMPLETE. All 4 comprehensive tests passed: (A) Success with restart - shows 'Discord a été relancé' and 'pop-up de bienvenue', NO fallback instructions, uninstall also shows restart message. (B) Error path - cleanErr() working perfectly, strips 'Error invoking remote method' and 'Error:' prefixes, shows clean error message, restart button shows 'Recommencer'. (C) Success without restart - shows fallback instructions 'Ferme-le complètement puis rouvre-le', does NOT show auto-restart message. (D) Web mode regression - landing page renders correctly without wizard. No console errors. Screenshots captured for all scenarios. Bug fix is production-ready."
+    -agent: "testing"
+    -message: "✅ BRAND CENTERING & UI VERIFICATION COMPLETE. All 4 comprehensive tests passed: TEST 1 (Brand centering): Brand perfectly centered at top (0.00px offset, within 4px tolerance), position 'absolute' as required, screenshot confirms centered 'Sparkle' pill. TEST 2 (Wizard styling & flows): CSS correct (.stage flex, .btn-primary pill 999px), install flow works perfectly (welcome → plugin → install → done with 'Sparkle est installé' and 'Discord a été relancé'), uninstall flow works (uninstall → uninstalled with 'Sparkle désinstallé'). TEST 3 (Error message cleaning): Error message clean, shows 'Échec de l'installation' and 'Échec de l'injection dans Discord' WITHOUT 'Error invoking remote method' or 'Error:' prefix - cleanErr() working correctly. TEST 4 (Web regression): Landing page renders correctly with all elements (hero, nav, about, features, faq, download buttons), wizard absent, window.sparkle does not exist. No console errors. All UI changes verified working correctly."
 

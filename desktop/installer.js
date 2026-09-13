@@ -12,6 +12,14 @@ const path = require("path");
 const https = require("https");
 const { execSync, spawn } = require("child_process");
 
+// Dans le process principal d'Electron, require("fs") est "asar-aware" : toute
+// opération touchant un fichier .asar (rename/stat/write de app.asar) est interceptée
+// par la couche ASAR et échoue (ENOENT ... app.asar). On DOIT utiliser "original-fs",
+// le module fs non patché d'Electron, pour manipuler app.asar comme un fichier normal.
+// En dehors d'Electron (tests Node), original-fs n'existe pas -> repli sur fs.
+let ofs;
+try { ofs = require("original-fs"); } catch (_) { ofs = fs; }
+
 const FLAVORS = ["Discord", "DiscordPTB", "DiscordCanary", "DiscordDevelopment"];
 const PLUGIN_NAME = "AutoQuest.plugin.js";
 
@@ -120,7 +128,7 @@ function writeAppAsar(outFile, patcherPath) {
   prefix.writeUInt32LE(headerObjectSize, 8);
   prefix.writeUInt32LE(headerStringSize, 12);
 
-  fs.writeFileSync(outFile, Buffer.concat([
+  ofs.writeFileSync(outFile, Buffer.concat([
     prefix,
     Buffer.from(headerString, "utf8"),
     Buffer.from(indexJs + packageJson, "utf8"),
@@ -177,7 +185,7 @@ function appDirsOf(flavor) {
 async function renameRetry(from, to) {
   let lastErr;
   for (let i = 0; i < 6; i++) {
-    try { fs.renameSync(from, to); return; } catch (e) { lastErr = e; await sleep(500); }
+    try { ofs.renameSync(from, to); return; } catch (e) { lastErr = e; await sleep(500); }
   }
   throw new Error("Impossible de renommer " + path.basename(from) + " (Discord est peut-être encore ouvert) : " + lastErr.message);
 }
@@ -188,8 +196,8 @@ async function patchResources(resources, patcherPath) {
   const backup = path.join(resources, "_app.asar");
   const legacyApp = path.join(resources, "app"); // ancien patch Sparkle (dossier app)
 
-  const hasBackup = fs.existsSync(backup);
-  const asarIsFile = fs.existsSync(asar) && fs.statSync(asar).isFile();
+  const hasBackup = ofs.existsSync(backup);
+  const asarIsFile = ofs.existsSync(asar) && ofs.statSync(asar).isFile();
   if (!hasBackup && !asarIsFile) return false; // pas une installation Discord exploitable
 
   if (!hasBackup) {
@@ -197,14 +205,14 @@ async function patchResources(resources, patcherPath) {
     await renameRetry(asar, backup);
     const unpacked = path.join(resources, "app.asar.unpacked");
     const unpackedBak = path.join(resources, "_app.asar.unpacked");
-    if (fs.existsSync(unpacked) && !fs.existsSync(unpackedBak)) {
-      try { fs.renameSync(unpacked, unpackedBak); } catch (_) {}
+    if (ofs.existsSync(unpacked) && !ofs.existsSync(unpackedBak)) {
+      try { ofs.renameSync(unpacked, unpackedBak); } catch (_) {}
     }
-  } else if (fs.existsSync(asar)) {
+  } else if (ofs.existsSync(asar)) {
     // Déjà patché : on remplace juste notre mini asar (fichier ou ancien dossier)
-    fs.rmSync(asar, { recursive: true, force: true });
+    ofs.rmSync(asar, { recursive: true, force: true });
   }
-  if (fs.existsSync(legacyApp)) fs.rmSync(legacyApp, { recursive: true, force: true });
+  if (ofs.existsSync(legacyApp)) ofs.rmSync(legacyApp, { recursive: true, force: true });
 
   writeAppAsar(asar, patcherPath);
   return true;
@@ -215,16 +223,16 @@ async function unpatchResources(resources) {
   const backup = path.join(resources, "_app.asar");
   const legacyApp = path.join(resources, "app");
   let did = false;
-  if (fs.existsSync(legacyApp)) { fs.rmSync(legacyApp, { recursive: true, force: true }); did = true; }
-  if (fs.existsSync(backup)) {
-    if (fs.existsSync(asar)) fs.rmSync(asar, { recursive: true, force: true });
+  if (ofs.existsSync(legacyApp)) { ofs.rmSync(legacyApp, { recursive: true, force: true }); did = true; }
+  if (ofs.existsSync(backup)) {
+    if (ofs.existsSync(asar)) ofs.rmSync(asar, { recursive: true, force: true });
     await renameRetry(backup, asar);
     did = true;
   }
   const unpackedBak = path.join(resources, "_app.asar.unpacked");
   const unpacked = path.join(resources, "app.asar.unpacked");
-  if (fs.existsSync(unpackedBak) && !fs.existsSync(unpacked)) {
-    try { fs.renameSync(unpackedBak, unpacked); } catch (_) {}
+  if (ofs.existsSync(unpackedBak) && !ofs.existsSync(unpacked)) {
+    try { ofs.renameSync(unpackedBak, unpacked); } catch (_) {}
   }
   return did;
 }
@@ -344,7 +352,7 @@ function detect() {
     if (!appDirs.length) continue;
     const versions = appDirs.map((d) => path.basename(d).replace(/^app-/, "")).sort();
     const latest = versions[versions.length - 1];
-    const patched = appDirs.some((d) => fs.existsSync(path.join(d, "resources", "_app.asar")));
+    const patched = appDirs.some((d) => ofs.existsSync(path.join(d, "resources", "_app.asar")));
     out.push({ flavor, version: latest, patched });
   }
   return out;

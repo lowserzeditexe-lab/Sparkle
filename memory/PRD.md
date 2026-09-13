@@ -160,3 +160,15 @@ l'extension et ajoute le plugin par défaut. Doit être testable dans la preview
   affichent le redémarrage auto (result.restarted). Testé par agent frontend (A succès+restart,
   B erreur propre, C succès sans restart, D landing). Sparkle.exe recompilé/signé (78,9 Mo).
 - patch.ps1/unpatch.ps1 (NSIS) restent sur le CLI: à réaligner si le NSIS est réutilisé (non prioritaire).
+
+## BUGFIX ENOENT app.asar + recadrage Sparkle + icône (2025-07)
+- Cause ENOENT: dans le process principal Electron, require("fs") est asar-aware => rename/
+  write/stat sur app.asar interceptés et échouent. Fix: require("original-fs") (alias ofs)
+  pour TOUTES les op sur app.asar/_app.asar (writeAppAsar, renameRetry, patch/unpatchResources,
+  detect). fs classique conservé pour dist/plugins. Repli ofs=fs hors Electron (tests Node).
+  Validé en simulation. Sparkle.exe recompilé (original-fs present, signé).
+- UI: .brand recadrée -> centrée en absolu (top:24px, translateX -50%), cadre pill. offset 0 mesuré.
+- Icône: fenêtre/taskbar = icon.ico (main.js) OK. Icône du FICHIER .exe NON modifiable ici:
+  host aarch64 (wine ne lance pas rcedit x86) + slots icône du stub 7zSD.sfx trop petits
+  (744/296 o) pour un remplacement en place. Nécessite rcedit/Resource Hacker sur Windows/x86,
+  ou electron-builder sur host x86. Ne pas hacker le PE (risque de casser l'installeur).
